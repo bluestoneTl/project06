@@ -10,8 +10,8 @@ datasets:
   train:
     name: TrainSet
     type: PairedImageIRDataset
-    dataroot_gt: datasets/data_4000_NewName/train/HR
-    dataroot_lq: datasets/data_4000_NewName/train/LQ
+    dataroot_gt: datasets/ZZCX_2_1/train/HQ
+    dataroot_lq: datasets/ZZCX_2_1/train/LQ
     filename_tmpl: '{}'
     io_backend:
       type: disk
@@ -36,8 +36,8 @@ datasets:
   val:
     name: ValSet
     type: PairedImageIRDataset
-    dataroot_gt: datasets/data_4000_NewName/val/HR
-    dataroot_lq: datasets/data_4000_NewName/val/LQ
+    dataroot_gt: datasets/ZZCX_2_1/val/HQ
+    dataroot_lq: datasets/ZZCX_2_1/val/LQ
     filename_tmpl: '{}'
     io_backend:
       type: disk
@@ -97,11 +97,11 @@ diffusion_schedule:
 
 # path
 path:
-  pretrain_network_g: experiments/train_HI_Diff_GoPro_S1/models/net_g_232000.pth
+  pretrain_network_g: pretrain_model/stage1_10w/net_g_latest.pth
   param_key_g: params
   strict_load_g: true
 
-  pretrain_network_le: experiments/train_HI_Diff_GoPro_S1/models/net_le_232000.pth
+  pretrain_network_le: pretrain_model/stage1_10w/net_le_latest.pth
   param_key_g: params
   strict_load_le: true
 
@@ -117,13 +117,13 @@ path:
 
 # training settings
 train:
-  total_iter: 200000
+  total_iter: 150000
   warmup_iter: -1 # no warm up
   use_grad_clip: True
 
   scheduler:
     type: CosineAnnealingRestartCyclicLR
-    periods: [100000, 200000]       
+    periods: [50000, 100000]     
     restart_weights: [1,1]
     eta_mins: [0.0002,0.000001]
   
