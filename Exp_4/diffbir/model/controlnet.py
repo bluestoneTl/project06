@@ -314,7 +314,7 @@ class ControlNet(nn.Module):
             zero_module(conv_nd(self.dims, channels, channels, 1, padding=0))
         )
 
-    def forward(self, x, hint, rgb, timesteps, context, **kwargs):
+    def forward(self, x, hint, rgb, timesteps, context, edge, **kwargs):
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
         emb = self.time_embed(t_emb)
 
@@ -324,10 +324,10 @@ class ControlNet(nn.Module):
         
         h, emb, context = map(lambda t: t.type(self.dtype), (x, emb, context))
         for module, zero_conv in zip(self.input_blocks, self.zero_convs):
-            h = module(h, emb, context, rgb)             # 在这里进行方法二融合RGB图像后续操作
+            h = module(h, emb, context, rgb, edge)             # 在这里进行方法二融合RGB图像后续操作
             outs.append(zero_conv(h, emb, context))
 
-        h = self.middle_block(h, emb, context, rgb)      
+        h = self.middle_block(h, emb, context, rgb, edge)      
         outs.append(self.middle_block_out(h, emb, context))
 
         return outs

@@ -106,6 +106,7 @@ dataset:
       # file_list_condition: datasets/ZZCX_01_20/train/condition_edge.list
       # file_list_condition: datasets/ZZCX_01_20/train/condition_RGB.list
       file_list_RGB: datasets/ZZCX_2_1/train_RGB/condition_RGB.list
+      file_list_edge: datasets/ZZCX_2_1/train_RGB/condition_edge.list
       file_backend_cfg:
         target: diffbir.dataset.file_backend.HardDiskBackend
       out_size: 512
@@ -125,10 +126,10 @@ train:
   # pretrained sd v2.1 path
   sd_path: weights/v2-1_512-ema-pruned.ckpt
   # experiment directory path
-  exp_dir: myexperiments/experiment6/stage2_1
+  exp_dir: experiment/experiment1/stage2
   # stage 1 swinir path.
   # In our paper, we use SwinIR trained on ImageNet-1k with codeformer degradation.
-  swinir_path: experiment4/stage1/checkpoints/0150000.pt  
+  swinir_path: weights/my_swinir.pth
   # swinir_path: weights/general_swinir_v1.ckpt
   learning_rate: 1e-4
   # ImageNet 1k (1.3M images)

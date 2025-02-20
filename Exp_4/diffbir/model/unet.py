@@ -37,12 +37,12 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     support it as an extra input.
     """
 
-    def forward(self, x, emb, context=None, rgb=None):  # 【融合RGB图像方法二】
+    def forward(self, x, emb, context=None, rgb=None, edge=None):  # 【融合RGB图像方法二】
         for layer in self:
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
             elif isinstance(layer, SpatialTransformer):
-                x = layer(x, context, rgb)                 # 【融合RGB图像方法二】
+                x = layer(x, context, rgb, edge)                 # 【融合RGB图像方法二】
             else:
                 x = layer(x)
         return x
