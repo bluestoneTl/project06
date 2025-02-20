@@ -129,7 +129,7 @@ train:
   exp_dir: experiment/experiment_1/stage2
   # stage 1 swinir path.
   # In our paper, we use SwinIR trained on ImageNet-1k with codeformer degradation.
-  swinir_path: weights/my_swinir.pth
+  swinir_path: weights/my_swinir.pt
   # swinir_path: weights/general_swinir_v1.ckpt
   learning_rate: 1e-4
   # ImageNet 1k (1.3M images)
