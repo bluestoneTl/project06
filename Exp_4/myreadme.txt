@@ -128,3 +128,4 @@ find datasets/ZZCX_2_1/train/HQ -type f > datasets/ZZCX_2_1/train/HQ.list
 find datasets/ZZCX_2_1/train/LQ -type f > datasets/ZZCX_2_1/train/LQ.list
 find datasets/ZZCX_2_1/train_RGB/HQ -type f > datasets/ZZCX_2_1/train_RGB/RGB.list
 find datasets/ZZCX_2_1/train_RGB/condition_HQ -type f > datasets/ZZCX_2_1/train_RGB/condition_RGB.list
+find datasets/ZZCX_2_1/train_RGB/condition_HQ -type f > datasets/ZZCX_2_1/train_RGB/condition_RGB.list
