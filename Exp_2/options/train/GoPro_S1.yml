@@ -1,6 +1,6 @@
 # general settings
-name:  train_HI_Diff_RealBlur_J_S2
-model_type: HI_Diff_S2
+name:  train_HI_Diff_GoPro_S1
+model_type: HI_Diff_S1
 scale: 1
 num_gpu: auto  # set num_gpu: 0 for cpu mode
 manual_seed: 100
@@ -10,8 +10,8 @@ datasets:
   train:
     name: TrainSet
     type: PairedImageIRDataset
-    dataroot_gt: datasets/ZZCX_2_1/train/HQ
-    dataroot_lq: datasets/ZZCX_2_1/train/LQ
+    dataroot_gt: Exp_1/datasets/ZZCX_2_1/train_RGB/HQ
+    dataroot_lq: Exp_1/datasets/ZZCX_2_1/train/LQ
     filename_tmpl: '{}'
     io_backend:
       type: disk
@@ -36,8 +36,8 @@ datasets:
   val:
     name: ValSet
     type: PairedImageIRDataset
-    dataroot_gt: datasets/ZZCX_2_1/val/HQ
-    dataroot_lq: datasets/ZZCX_2_1/val/LQ
+    dataroot_gt: Exp_1/datasets/ZZCX_2_1/val/HQ
+    dataroot_lq: Exp_1/datasets/ZZCX_2_1/val/LQ
     filename_tmpl: '{}'
     io_backend:
       type: disk
@@ -68,62 +68,28 @@ network_le:
   patch_expansion: 0.5
   channel_expansion: 4
 
-network_le_dm:
-  type: latent_encoder_gelu
-  in_chans: 3
-  embed_dim: 64 # same as above
-  block_num: 6
-  group: 4 # same as above
-  stage: 2
-  patch_expansion: 0.5
-  channel_expansion: 4
-
-network_d:
-  type: denoising
-  in_channel: 256 # (embed_dim*4)
-  out_channel: 256 # (embed_dim*4)
-  inner_channel: 512
-  block_num: 4
-  group: 4 # same as above
-  patch_expansion: 0.5
-  channel_expansion: 2
-
-diffusion_schedule:
-  apply_ldm: False
-  schedule: linear
-  timesteps: 8
-  linear_start: 0.1 # 1e-6
-  linear_end: 0.99 # 1e-2
-
 # path
 path:
-  pretrain_network_g: pretrain_model/stage1_10w/net_g_latest.pth
+  pretrain_network_g: ~
   param_key_g: params
-  strict_load_g: true
-
-  pretrain_network_le: pretrain_model/stage1_10w/net_le_latest.pth
+  strict_load_g: true**
+  pretrain_network_le: ~
   param_key_g: params
   strict_load_le: true
-
-  pretrain_network_le_dm: ~
-  param_key_g: params
-  strict_load_le_dm: true
-
-  pretrain_network_d: ~
-  param_key_g: params
-  strict_load_d: true
 
   resume_state: ~
 
 # training settings
 train:
-  total_iter: 150000
+  # total_iter: 300000
+  total_iter: 150000             # 【新训练更改，尝试解决过拟合问题】
   warmup_iter: -1 # no warm up
   use_grad_clip: True
 
   scheduler:
     type: CosineAnnealingRestartCyclicLR
-    periods: [50000, 100000]     
+    # periods: [100000, 200000]       
+    periods: [50000, 100000]     # 【新训练更改，尝试解决过拟合问题】
     restart_weights: [1,1]
     eta_mins: [0.0002,0.000001]
   
@@ -140,11 +106,6 @@ train:
   
   # losses
   pixel_opt:
-    type: L1Loss
-    loss_weight: 1.0
-    reduction: mean
-
-  pixel_diff_opt: 
     type: L1Loss
     loss_weight: 1.0
     reduction: mean
