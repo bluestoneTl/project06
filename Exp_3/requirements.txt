@@ -1,7 +1,7 @@
 addict
 future
 lmdb
-numpy
+numpy==1.23.0
 opencv-python
 Pillow
 pyyaml
@@ -18,4 +18,4 @@ einops
 natsort
 joblib
 wandb
-# basicsr
+basicsr==1.4.2
