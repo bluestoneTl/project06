@@ -44,8 +44,3 @@ fairscale==0.4.4
 
 # Could not find the bitsandbytes CUDA binary at 
 # PosixPath('/root/anaconda3/envs/diffbir/lib/python3.10/site-packages/bitsandbytes/libbitsandbytes_cuda113.so
-bitsandbytes (0.45.0)
-Available versions: 0.45.0, 0.44.1, 0.44.0, 0.43.3, 0.43.2, 0.43.1, 0.43.0, 0.42.0, 0.41.3.post2, 0.41.3.post1, 0.41.3, 0.41.2.post2, 0.41.2.post1, 0.41.2, 0.41.1, 0.41.0, 0.40.2, 0.40.1.post1, 0.40.1, 0.40.0.post4, 0.40.0.post3, 0.40.0.post2, 0.40.0.post1, 0.40.0, 0.39.1, 0.39.0, 0.38.1, 0.38.0.post2, 0.38.0.post1, 0.38.0, 0.37.2, 0.37.1, 0.37.0, 0.36.0.post2, 0.36.0.post1,
-0.36.0, 0.35.4, 0.35.3, 0.35.2, 0.35.1, 0.35.0, 0.34.0, 0.33.1, 0.33.0, 0.32.3, 0.32.2, 0.32.1, 0.32.0, 0.31.8
-  INSTALLED: 0.32.1
-  LATEST:    0.45.0
