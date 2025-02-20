@@ -10,8 +10,8 @@ datasets:
   train:
     name: TrainSet
     type: PairedImageIRDataset
-    dataroot_gt: datasets/data_ZZCX/train/HR
-    dataroot_lq: datasets/data_ZZCX/train/LQ
+    dataroot_gt: datasets/ZZCX_2_1/train_RGB/Edge_HQ
+    dataroot_lq: datasets/ZZCX_2_1/train/LQ
     filename_tmpl: '{}'
     io_backend:
       type: disk
@@ -36,8 +36,8 @@ datasets:
   val:
     name: ValSet
     type: PairedImageIRDataset
-    dataroot_gt: datasets/data_ZZCX/val/HR
-    dataroot_lq: datasets/data_ZZCX/val/LQ
+    dataroot_gt: datasets/ZZCX_2_1/val/HQ
+    dataroot_lq: datasets/ZZCX_2_1/val/LQ
     filename_tmpl: '{}'
     io_backend:
       type: disk
