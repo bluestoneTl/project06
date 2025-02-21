@@ -140,8 +140,8 @@ class CodeformerDataset(data.Dataset):
                     print(f"filed to load {lq_path}, try another image")
                     index = random.randint(0, len(self) - 1)
 
-            # # 加载RGB图像特征          # 【融合RGB图像方法二】
-            # rgb = self.load_condition_features(index)
+            # 加载RGB图像特征          # 【融合RGB图像方法二】
+            rgb = self.load_condition_features(index)
 
             # # 加载边缘图特征
             # edge = self.load_condition_features2(index)
@@ -151,7 +151,7 @@ class CodeformerDataset(data.Dataset):
 
             lq = (img_lq[..., ::-1] / 255.0).astype(np.float32)
 
-            return gt, lq, prompt
+            return gt, lq, prompt, rgb
 
     # def __getitem__(self, index: int) -> Dict[str, Union[np.ndarray, str]]:
     #     # load gt image

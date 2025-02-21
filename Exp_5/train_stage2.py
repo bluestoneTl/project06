@@ -123,7 +123,7 @@ def main(args) -> None:
         for batch in loader:
             to(batch, device)
             batch = batch_transform(batch)
-            gt, lq, prompt = batch
+            gt, lq, prompt, rgb = batch
             # gt shape: torch.Size([16, 512, 512, 3])
             # lq shape: torch.Size([16, 512, 512, 3])
             gt = rearrange(gt, "b h w c -> b c h w").contiguous().float()
@@ -134,10 +134,7 @@ def main(args) -> None:
             with torch.no_grad():
                 z_0 = pure_cldm.vae_encode(gt)
                 clean = swinir(lq)
-                import time 
-                print("clean", clean.shape)
-                time.sleep(1000)
-                cond = pure_cldm.prepare_condition(clean, prompt, clean)      # 【融合RGB图像方法二】
+                cond = pure_cldm.prepare_condition(clean, prompt, rgb)      # 【融合RGB图像方法二】
                 # cond shape: torch.Size([16, 4, 64, 64])
                 #  对RGB执行操作  和 cond 进行concat  卷积下降 作为新的condtition   
                 # noise augmentation
