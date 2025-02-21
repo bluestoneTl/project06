@@ -11,7 +11,7 @@ from torchvision.utils import save_image
 from diffbir.model import SwinIR
 from diffbir.utils.common import instantiate_from_config, to
 from torchvision import transforms
-
+#　python run_swinir_save_img.py --config configs/train/train_stage2.yaml
 def main(args) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cfg = OmegaConf.load(args.config)
@@ -37,8 +37,8 @@ def main(args) -> None:
         dataset=dataset,
         batch_size=cfg.train.batch_size,
         num_workers=cfg.train.num_workers,
-        shuffle=True,
-        drop_last=True,
+        shuffle=False,
+        drop_last=False,
         pin_memory=True,
     )
     print(f"Dataset contains {len(dataset):,} images")
@@ -61,17 +61,19 @@ def main(args) -> None:
         batch = batch_transform(batch)
         _, lq, _, _ = batch  # 只需要低质量图像 lq
         lq = rearrange(lq, "b h w c -> b c h w").contiguous().float()
-
+        lq = lq.to(device)  
         with torch.no_grad():
             clean = swinir(lq)
 
         # 保存处理后的图片
         for i in range(clean.shape[0]):
+            # 计算当前图片在数据集中的索引
             image_idx = batch_idx * cfg.train.batch_size + i
-            save_image(clean[i], os.path.join(output_folder, f"image_{image_idx}.png"))
-
-        # 后处理输出结果
-        # output_image = postprocess(output_tensor.squeeze(0).clamp(0, 1))
+            # 获取输入图片的路径
+            input_image_path = dataset.image_files_LQ[image_idx]["image_path"]
+            # 提取文件名
+            file_name = os.path.basename(input_image_path)
+            save_image(clean[i], os.path.join(output_folder, file_name))
 
     print("All images have been processed and saved.")
 

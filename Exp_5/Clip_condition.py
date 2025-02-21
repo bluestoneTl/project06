@@ -10,10 +10,10 @@ model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
 processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
 
 # 定义图片目录
-image_dir = "datasets/ZZCX_2_1/train_RGB/edge_HQ"  
+image_dir = "datasets/ZZCX_2_1/train/swinir_LQ"  
 
 # 定义保存特征的目录
-feature_dir = "datasets/ZZCX_2_1/train_RGB/condition_edge_HQ"
+feature_dir = "datasets/ZZCX_2_1/train/condition_swinir_LQ"
 os.makedirs(feature_dir, exist_ok=True)
 
 # 遍历图片目录
