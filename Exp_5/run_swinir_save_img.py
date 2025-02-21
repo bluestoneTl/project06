@@ -56,8 +56,8 @@ postprocess = transforms.Compose([
 ])
 
 # 定义输入和输出文件夹路径
-input_folder = "datasets/ZZCX_2_1/train/LQ"  
-output_folder = "datasets/ZZCX_2_1/train/swinir_LQ"  
+input_folder = "datasets/ZZCX_2_1/test/LQ_mini"  
+output_folder = "datasets/ZZCX_2_1/test/swinir_LQ"  
 os.makedirs(output_folder, exist_ok=True)
 
 # 遍历输入文件夹中的所有图片
