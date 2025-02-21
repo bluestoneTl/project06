@@ -1,85 +1,79 @@
-import torch
-from torchvision import transforms
-from PIL import Image
-from diffbir.model.swinir import SwinIR
 import os
+from argparse import ArgumentParser
+import copy
+from omegaconf import OmegaConf
+import torch
+from torch.utils.data import DataLoader
+from einops import rearrange
+from tqdm import tqdm
+from torchvision.utils import save_image
 
-# 配置模型参数
-img_size = 64
-patch_size = 1
-in_chans = 3
-embed_dim = 180
-depths = [6, 6, 6, 6, 6, 6, 6, 6]
-num_heads = [6, 6, 6, 6, 6, 6, 6, 6]
-window_size = 8
-mlp_ratio = 2
-sf = 8
-img_range = 1.0
-upsampler = "nearest+conv"
-resi_connection = "1conv"
-unshuffle = True
-unshuffle_scale = 8
+from diffbir.model import SwinIR
+from diffbir.utils.common import instantiate_from_config, to
+from torchvision import transforms
 
-swinir = SwinIR(
-    img_size=img_size,
-    patch_size=patch_size,
-    in_chans=in_chans,
-    embed_dim=embed_dim,
-    depths=depths,
-    num_heads=num_heads,
-    window_size=window_size,
-    mlp_ratio=mlp_ratio,
-    sf=sf,
-    img_range=img_range,
-    upsampler=upsampler,
-    resi_connection=resi_connection,
-    unshuffle=unshuffle,
-    unshuffle_scale=unshuffle_scale
-)
+def main(args) -> None:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    cfg = OmegaConf.load(args.config)
 
-swinir_path = "weights/my_swinir.pt" 
-sd = torch.load(swinir_path, map_location="cpu")
-if "state_dict" in sd:
-    sd = sd["state_dict"]
-sd = {
-    (k[len("module."):] if k.startswith("module.") else k): v
-    for k, v in sd.items()
-}
-swinir.load_state_dict(sd, strict=True)
-swinir.eval()
+    # 加载 SwinIR 模型
+    swinir: SwinIR = instantiate_from_config(cfg.model.swinir)
+    sd = torch.load(cfg.train.swinir_path, map_location="cpu")
+    if "state_dict" in sd:
+        sd = sd["state_dict"]
+    sd = {
+        (k[len("module."):] if k.startswith("module.") else k): v
+        for k, v in sd.items()
+    }
+    swinir.load_state_dict(sd, strict=True)
+    for p in swinir.parameters():
+        p.requires_grad = False
+    swinir.eval().to(device)
+    print(f"load SwinIR from {cfg.train.swinir_path}")
 
-preprocess = transforms.Compose([
-    transforms.ToTensor()
-])
-postprocess = transforms.Compose([
-    transforms.ToPILImage()
-])
+    # Setup data:
+    dataset = instantiate_from_config(cfg.dataset.train)
+    loader = DataLoader(
+        dataset=dataset,
+        batch_size=cfg.train.batch_size,
+        num_workers=cfg.train.num_workers,
+        shuffle=True,
+        drop_last=True,
+        pin_memory=True,
+    )
+    print(f"Dataset contains {len(dataset):,} images")
 
-# 定义输入和输出文件夹路径
-input_folder = "datasets/ZZCX_2_1/test/LQ_mini"  
-output_folder = "datasets/ZZCX_2_1/test/swinir_LQ"  
-os.makedirs(output_folder, exist_ok=True)
+    batch_transform = instantiate_from_config(cfg.batch_transform)
 
-# 遍历输入文件夹中的所有图片
-for filename in os.listdir(input_folder):
-    if filename.endswith(('.png', '.jpg', '.jpeg')):
-        # 读取图片
-        image_path = os.path.join(input_folder, filename)
-        image = Image.open(image_path).convert('RGB')
+    # 定义保存图片的文件夹
+    output_folder = "datasets/ZZCX_2_1/train/swinir_LQ"
+    os.makedirs(output_folder, exist_ok=True)
 
-        # 预处理图片
-        input_tensor = preprocess(image).unsqueeze(0)  # 添加批次维度
+    preprocess = transforms.Compose([
+        transforms.ToTensor()
+    ])
+    postprocess = transforms.Compose([
+        transforms.ToPILImage()
+    ])
 
-        # 使用 SwinIR 模型处理图片
+    for batch_idx, batch in enumerate(tqdm(loader)):
+        to(batch, device)
+        batch = batch_transform(batch)
+        _, lq, _, _ = batch  # 只需要低质量图像 lq
+        lq = rearrange(lq, "b h w c -> b c h w").contiguous().float()
+
         with torch.no_grad():
-            output_tensor = swinir(input_tensor)
-
-        # 后处理输出结果
-        output_image = postprocess(output_tensor.squeeze(0).clamp(0, 1))
+            clean = swinir(lq)
 
         # 保存处理后的图片
-        output_path = os.path.join(output_folder, filename)
-        output_image.save(output_path)
-        print(f"Processed and saved {output_path}")
+        for i in range(clean.shape[0]):
+            image_idx = batch_idx * cfg.train.batch_size + i
+            save_image(clean[i], os.path.join(output_folder, f"image_{image_idx}.png"))
 
-print("All images have been processed and saved.")
+    print("All images have been processed and saved.")
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--config", type=str, required=True)
+    args = parser.parse_args()
+    main(args)
