@@ -70,6 +70,9 @@ def main(args) -> None:
             image_idx = batch_idx * cfg.train.batch_size + i
             save_image(clean[i], os.path.join(output_folder, f"image_{image_idx}.png"))
 
+        # 后处理输出结果
+        # output_image = postprocess(output_tensor.squeeze(0).clamp(0, 1))
+
     print("All images have been processed and saved.")
 
 if __name__ == "__main__":
