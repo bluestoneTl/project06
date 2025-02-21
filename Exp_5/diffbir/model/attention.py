@@ -273,12 +273,12 @@ class BasicTransformerBlock(nn.Module):
         self.norm3 = nn.LayerNorm(dim)
         self.checkpoint = checkpoint
 
-    def forward(self, x, context=None, rgb=None, edge=None):
+    def forward(self, x, context=None, rgb=None):
         return checkpoint(
-            self._forward, (x, context, rgb, edge), self.parameters(), self.checkpoint
+            self._forward, (x, context, rgb), self.parameters(), self.checkpoint
         )
 
-    def _forward(self, x, context=None, rgb=None, edge=None):
+    def _forward(self, x, context=None, rgb=None):
         # x = (
         #     self.attn1(
         #         self.norm1(x), context=context if self.disable_self_attn else None
@@ -305,16 +305,6 @@ class BasicTransformerBlock(nn.Module):
         )
         if rgb is not None:
             x = self.attn_rgb2(self.norm2(x), context=rgb) + x  # 新增处理rgb特征的交叉注意力 【融合RGB图像方法二】
-        x = self.ff(self.norm3(x)) + x
-
-        x = (
-            self.attn_rgb1(
-                self.norm1(x), context=edge if self.disable_self_attn else None
-            )
-            + x
-        )
-        if edge is not None:
-            x = self.attn_rgb2(self.norm2(x), context=edge) + x  # 新增处理edge特征的交叉注意力 
         x = self.ff(self.norm3(x)) + x
 
         return x
@@ -380,7 +370,7 @@ class SpatialTransformer(nn.Module):
             self.proj_out = zero_module(nn.Linear(in_channels, inner_dim))
         self.use_linear = use_linear
 
-    def forward(self, x, context=None, rgb=None, edge=None):  ## 16 1 512   16 4 512 512     # 在这里将clip提取的特征与x使用 ，用交叉注意力
+    def forward(self, x, context=None, rgb=None):  ## 16 1 512   16 4 512 512     # 在这里将clip提取的特征与x使用 ，用交叉注意力
         # note: if no context is given, cross-attention defaults to self-attention
         # x shape:　torch.Size([16, 320, 64, 64])
         # context shape: torch.Size([16, 77, 1024])
@@ -389,8 +379,6 @@ class SpatialTransformer(nn.Module):
             context = [context]
         if not isinstance(rgb, list):
             rgb = [rgb]
-        if not isinstance(edge, list):
-            edge = [edge]
         b, c, h, w = x.shape
         x_in = x
         x = self.norm(x)
@@ -403,7 +391,7 @@ class SpatialTransformer(nn.Module):
         for i, block in enumerate(self.transformer_blocks):
             # x = block(x, context=context[i]) 
             # x = block(x, rgb=rgb[i])            # 【融合RGB图像方法二】  block不能重复用
-            x = block(x, context=context[i], rgb=rgb[i], edge=edge[i])
+            x = block(x, context=context[i], rgb=rgb[i])
 
         if self.use_linear:
             x = self.proj_out(x)
