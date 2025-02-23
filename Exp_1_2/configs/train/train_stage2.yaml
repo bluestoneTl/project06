@@ -85,6 +85,60 @@ model:
       resi_connection: "1conv"
       unshuffle: True
       unshuffle_scale: 8
+      
+  hi_diff:
+    # network structures
+    network_g:
+      type: Transformer
+      inp_channels: 3
+      out_channels: 3
+      dim: 48
+      num_blocks: [3,5,6,6]
+      num_refinement_blocks: 4
+      heads: [1,2,4,8]
+      ffn_expansion_factor: 2.66
+      bias: False
+      LayerNorm_type: WithBias
+      dual_pixel_task: False
+      embed_dim: 64
+      group: 4 # N=4*4
+
+    network_le:
+      type: latent_encoder_gelu
+      in_chans: 6
+      embed_dim: 64 # same as above
+      block_num: 6
+      group: 4 # same as above
+      stage: 1
+      patch_expansion: 0.5
+      channel_expansion: 4
+
+    network_le_dm:
+      type: latent_encoder_gelu
+      in_chans: 3
+      embed_dim: 64 # same as above
+      block_num: 6
+      group: 4 # same as above
+      stage: 2
+      patch_expansion: 0.5
+      channel_expansion: 4
+
+    network_d:
+      type: denoising
+      in_channel: 256 # (embed_dim*4)
+      out_channel: 256 # (embed_dim*4)
+      inner_channel: 512
+      block_num: 4
+      group: 4 # same as above
+      patch_expansion: 0.5
+      channel_expansion: 2
+
+    diffusion_schedule:
+      apply_ldm: False
+      schedule: linear
+      timesteps: 8
+      linear_start: 0.1 # 1e-6
+      linear_end: 0.99 # 1e-2
 
   diffusion:
     target: diffbir.model.gaussian_diffusion.Diffusion
@@ -105,8 +159,7 @@ dataset:
       file_list_LQ: datasets/ZZCX_2_1/train/LQ.list
       # file_list_condition: datasets/ZZCX_01_20/train/condition_edge.list
       # file_list_condition: datasets/ZZCX_01_20/train/condition_RGB.list
-      file_list_RGB: datasets/ZZCX_2_1/train/condition_swinir_LQ.list
-      file_list_edge: datasets/ZZCX_2_1/train_RGB/condition_edge.list
+      file_list_RGB: datasets/ZZCX_2_1/train_RGB/condition_RGB.list
       file_backend_cfg:
         target: diffbir.dataset.file_backend.HardDiskBackend
       out_size: 512
@@ -126,10 +179,11 @@ train:
   # pretrained sd v2.1 path
   sd_path: weights/v2-1_512-ema-pruned.ckpt
   # experiment directory path
-  exp_dir: experiment/experiment_1/stage2
+  exp_dir: myexperiments/experiment6/stage2_1
   # stage 1 swinir path.
   # In our paper, we use SwinIR trained on ImageNet-1k with codeformer degradation.
-  swinir_path: weights/my_swinir.pt
+  # swinir_path: experiment4/stage1/checkpoints/0150000.pt  
+  hi_diff_path:
   # swinir_path: weights/general_swinir_v1.ckpt
   learning_rate: 1e-4
   # ImageNet 1k (1.3M images)
