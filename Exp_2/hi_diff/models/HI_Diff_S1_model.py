@@ -106,18 +106,21 @@ class HI_Diff_S1(BaseModel):
         self.lq = data['lq'].to(self.device)
         if 'gt' in data:
             self.gt = data['gt'].to(self.device)
+        if 'input_gt' in data:       # 新增input_gt
+            self.input_gt = data['input_gt'].to(self.device)
 
     def optimize_parameters(self, current_iter):
         self.optimizer_total.zero_grad()
 
-        prior = self.net_le(self.lq, self.gt)       # 生成先验信息  
+        # prior = self.net_le(self.lq, self.gt)       # 生成先验信息  
+        prior = self.net_le(self.lq, self.input_gt)       # 生成先验信息，用input_gt代替gt
         self.output = self.net_g(self.lq, prior)
 
         l_total = 0
         loss_dict = OrderedDict()
         # pixel loss
         if self.cri_pix:
-            l_pix = self.cri_pix(self.output, self.gt)
+            l_pix = self.cri_pix(self.output, self.gt)      # 与原gt计算loss，不做更改
             l_total += l_pix
             loss_dict['l_pix'] = l_pix
         # perceptual loss

@@ -46,7 +46,7 @@ def main(args) -> None:
     batch_transform = instantiate_from_config(cfg.batch_transform)
 
     # 定义保存图片的文件夹
-    output_folder = "datasets/ZZCX_2_1/train/swinir_LQ"
+    output_folder = "results/swinir_output"
     os.makedirs(output_folder, exist_ok=True)
 
     preprocess = transforms.Compose([

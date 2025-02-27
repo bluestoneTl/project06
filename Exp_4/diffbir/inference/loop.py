@@ -159,7 +159,17 @@ class InferenceLoop:
                 condition = condition.cuda()
             condition = condition.unsqueeze(0)
 
-            yield lq, condition
+            condition_file2 = os.path.join(self.args.condition_path2, f"{stem}.pt")
+            if os.path.exists(condition_file2):
+                condition2 = torch.load(condition_file2)
+            else:
+                print(f"Condition file {condition_file2} not found. Using empty tensor as condition.")
+                condition2 = torch.empty(0)
+            if torch.cuda.is_available():
+                condition2 = condition2.cuda()
+            condition2 = condition2.unsqueeze(0)
+
+            yield lq, condition, condition2
 
     def after_load_lq(self, lq: Image.Image) -> np.ndarray:
         return np.array(lq)
@@ -173,7 +183,7 @@ class InferenceLoop:
             "bf16": torch.bfloat16,
         }[self.args.precision]
 
-        for (lq, condition) in self.load_lq():
+        for (lq, condition, condition2) in self.load_lq():
             # prepare prompt
             with VRAMPeakMonitor("applying captioner"):
                 caption = self.captioner(lq)
@@ -219,6 +229,7 @@ class InferenceLoop:
                         self.args.eta,
                         self.args.order,
                         condition,      # 【读取对应的特征】
+                        condition2,     # 【读取对应的特征】
                     )
                 samples.extend(list(batch_samples))
             self.save(samples, pos_prompt, neg_prompt)

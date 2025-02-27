@@ -101,8 +101,10 @@ dataset:
     params:
       # training file list path
       # file_list: 
-      file_list_HQ: datasets/ZZCX_2_1/train/HQ.list
-      file_list_LQ: datasets/ZZCX_2_1/train/LQ.list
+      # file_list_HQ: datasets/ZZCX_2_1/train/HQ.list
+      # file_list_LQ: datasets/ZZCX_2_1/train/LQ.list
+      file_list_LQ: datasets/ZZCX_2_1/test/LQ.list
+      file_list_HQ: datasets/ZZCX_2_1/test/HQ.list
       # file_list_condition: datasets/ZZCX_01_20/train/condition_edge.list
       # file_list_condition: datasets/ZZCX_01_20/train/condition_RGB.list
       file_list_RGB: datasets/ZZCX_2_1/train/condition_swinir_LQ.list
@@ -138,7 +140,7 @@ train:
   # batch size = 256, lr = 1e-4 (first 30k), 1e-5 (next 50k), total training steps = 80k
   batch_size: 16         # 256
   num_workers: 4
-  train_steps: 30000     # 30000
+  train_steps: 30000     # 30000    1w加
   log_every: 50
   ckpt_every: 10000
   image_every: 1000

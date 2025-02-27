@@ -52,13 +52,14 @@ python -u inference.py \
 --upscale 1 \
 --version custom \
 --train_cfg configs/train/train_stage2.yaml \
---ckpt myexperiments/experiment6/stage2_1/checkpoints/0030000.pt \
+--ckpt experiment/experiment_1/stage2/checkpoints/0030000.pt \
 --captioner none \
 --cfg_scale 4.0 \
 --noise_aug 0 \
 --input datasets/ZZCX_2_1/test/LQ \
 --condition_path datasets/ZZCX_2_1/test/RGB_HQ_condition \
---output results/2.16/custom_1 \
+--condition_path2 datasets/ZZCX_2_1/test/edge_HQ_condtion \
+--output results/2.26/custom_4 \
 --precision fp32 \
 --sampler spaced \
 --steps 50 \

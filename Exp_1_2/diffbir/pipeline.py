@@ -391,7 +391,12 @@ class SwinIRPipeline(Pipeline):
                 lq = resize_short_edge_to(lq, size=512)
             h0, w0 = lq.shape[2:]
             lq = pad_to_multiples_of(lq, multiple=64)
-            output = self.cleaner(lq)[:, :, :h0, :w0]
+            # output = self.cleaner(lq)[:, :, :h0, :w0]       # 用第一阶段模型进行处理
+
+            # 使用 Hi_Diff 模型进行推理
+            self.cleaner.feed_data({"lq": lq})
+            self.cleaner.test()
+            output = self.cleaner.output[:, :, :h0, :w0]
         else:
             tiled_model = make_tiled_fn(
                 self.cleaner,

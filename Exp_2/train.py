@@ -214,11 +214,13 @@ def train_pipeline(root_path):
 
             lq = train_data['lq']
             gt = train_data['gt']
+            input_gt = train_data['input_gt']   #　新增input_gt
 
             if mini_batch_size < batch_size:
                 indices = random.sample(range(0, batch_size), k=mini_batch_size)
                 lq = lq[indices]
                 gt = gt[indices]
+                input_gt = input_gt[indices]    # 同时更新input_gt索引
 
             if mini_gt_size < gt_size:
                 x0 = int((gt_size - mini_gt_size) * random.random())
@@ -227,10 +229,11 @@ def train_pipeline(root_path):
                 y1 = y0 + mini_gt_size
                 lq = lq[:,:,x0:x1,y0:y1]
                 gt = gt[:,:,x0*scale:x1*scale,y0*scale:y1*scale]
+                input_gt = input_gt[:,:,x0*scale:x1*scale,y0*scale:y1*scale]    # 同时剪裁input_gt
             ###-------------------------------------------
 
             # training
-            model.feed_data({'lq': lq, 'gt':gt})
+            model.feed_data({'lq': lq, 'gt':gt, 'input_gt':input_gt})   # 新增input_gt作为指导
             model.optimize_parameters(current_iter)
             iter_timer.record()
             if current_iter == 1:

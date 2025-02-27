@@ -286,6 +286,7 @@ def parse_args() -> Namespace:
     parser.add_argument("--llava_bit", type=str, default="4", choices=["16", "8", "4"])
 
     parser.add_argument('--condition_path', type=str, help='Path to the feature directory')
+    parser.add_argument('--condition_path2', type=str, help='Path to the feature directory')
 
     return parser.parse_args()
 

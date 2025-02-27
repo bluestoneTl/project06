@@ -148,6 +148,8 @@ def parse_options(root_path, is_train=True):
             dataset['dataroot_gt'] = osp.expanduser(dataset['dataroot_gt'])
         if dataset.get('dataroot_lq') is not None:
             dataset['dataroot_lq'] = osp.expanduser(dataset['dataroot_lq'])
+        if dataset.get('dataroot_input_gt') is not None:  # 新增处理
+            dataset['dataroot_input_gt'] = osp.expanduser(dataset['dataroot_input_gt'])
 
     # paths
     for key, val in opt['path'].items():

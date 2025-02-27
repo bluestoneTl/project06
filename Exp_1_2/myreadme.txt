@@ -58,7 +58,7 @@ python -u inference.py \
 --noise_aug 0 \
 --input datasets/ZZCX_2_1/test/LQ \
 --condition_path datasets/ZZCX_2_1/test/RGB_HQ_condition \
---output results/2.16/custom_1 \
+--output results/2.26/custom_1 \
 --precision fp32 \
 --sampler spaced \
 --steps 50 \

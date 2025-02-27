@@ -5,7 +5,43 @@ from basicsr.data.data_util import paired_paths_from_folder, paired_paths_from_l
 from hi_diff.utils.transforms import augment, paired_random_crop, random_augmentation
 from basicsr.utils import FileClient, imfrombytes, img2tensor
 from basicsr.utils.registry import DATASET_REGISTRY
+from basicsr.utils import img2tensor, scandir
+from os import path as osp
 
+def paired_paths_from_three_folders(folders, keys, filename_tmpl):
+    """Generate paired paths from three folders.
+
+    Args:
+        folders (list): A list of folder path. The order of list should be [input_folder, gt_folder, input_gt_folder].
+        keys (list): A list of keys identifying folders. Should be the same length as folders.
+        filename_tmpl (str): Template for each filename. Note that the template excludes the file extension.
+
+    Returns:
+        list: A list of paired paths.
+    """
+    assert len(folders) == 3, ('The len of folders should be 3 with [input_folder, gt_folder, input_gt_folder]. '
+                               f'But got {len(folders)}')
+    assert len(keys) == len(folders), ('The len of keys should be the same as folders.')
+    input_paths = sorted(list(scandir(folders[0], full_path=True)))
+    gt_paths = sorted(list(scandir(folders[1], full_path=True)))
+    input_gt_paths = sorted(list(scandir(folders[2], full_path=True)))
+    assert len(input_paths) == len(gt_paths) == len(input_gt_paths), (
+        f'{keys[0]} and {keys[1]} and {keys[2]} datasets have different number of images: '
+        f'{len(input_paths)}, {len(gt_paths)}, {len(input_gt_paths)}.')
+    paths = []
+    for in_path, gt_path, input_gt_path in zip(input_paths, gt_paths, input_gt_paths):
+        basename, ext = osp.splitext(osp.basename(in_path))
+        input_name = filename_tmpl.format(basename) + ext
+        gt_name = filename_tmpl.format(basename) + ext
+        input_gt_name = filename_tmpl.format(basename) + ext
+        assert input_name == osp.basename(gt_name) == osp.basename(input_gt_name), (
+            f'Filename mismatch: {input_name} and {gt_name} and {input_gt_name}')
+        paths.append({
+            f'{keys[0]}_path': in_path,
+            f'{keys[1]}_path': gt_path,
+            f'{keys[2]}_path': input_gt_path
+        })
+    return paths
 
 @DATASET_REGISTRY.register()
 class PairedImageIRDataset(data.Dataset):
@@ -47,20 +83,44 @@ class PairedImageIRDataset(data.Dataset):
         self.std = opt['std'] if 'std' in opt else None
 
         self.gt_folder, self.lq_folder = opt['dataroot_gt'], opt['dataroot_lq']
+        self.input_gt_folder = opt['dataroot_input_gt']        # 新增的input_gt路径
+
         if 'filename_tmpl' in opt:
             self.filename_tmpl = opt['filename_tmpl']
         else:
             self.filename_tmpl = '{}'
 
-        if self.io_backend_opt['type'] == 'lmdb':
-            self.io_backend_opt['db_paths'] = [self.lq_folder, self.gt_folder]
-            self.io_backend_opt['client_keys'] = ['lq', 'gt']
-            self.paths = paired_paths_from_lmdb([self.lq_folder, self.gt_folder], ['lq', 'gt'])
+        # if self.io_backend_opt['type'] == 'lmdb':
+        #     self.io_backend_opt['db_paths'] = [self.lq_folder, self.gt_folder]
+        #     self.io_backend_opt['client_keys'] = ['lq', 'gt', 'input_gt']
+        #     self.paths = paired_paths_from_lmdb([self.lq_folder, self.gt_folder], ['lq', 'gt'])
+        # elif 'meta_info_file' in self.opt and self.opt['meta_info_file'] is not None:
+        #     self.paths = paired_paths_from_meta_info_file([self.lq_folder, self.gt_folder], ['lq', 'gt'],
+        #                                                   self.opt['meta_info_file'], self.filename_tmpl)
+        # else:
+        #     self.paths = paired_paths_from_folder([self.lq_folder, self.gt_folder], ['lq', 'gt'], self.filename_tmpl)
+
+        if self.io_backend_opt['type'] == 'lmdb':       # 新增的input_gt_folder
+            if self.input_gt_folder:
+                self.io_backend_opt['db_paths'] = [self.lq_folder, self.gt_folder, self.input_gt_folder]
+                self.io_backend_opt['client_keys'] = ['lq', 'gt', 'input_gt']
+                self.paths = paired_paths_from_lmdb([self.lq_folder, self.gt_folder, self.input_gt_folder], ['lq', 'gt', 'input_gt'])
+            else:
+                self.io_backend_opt['db_paths'] = [self.lq_folder, self.gt_folder]
+                self.io_backend_opt['client_keys'] = ['lq', 'gt']
+                self.paths = paired_paths_from_lmdb([self.lq_folder, self.gt_folder], ['lq', 'gt'])
         elif 'meta_info_file' in self.opt and self.opt['meta_info_file'] is not None:
-            self.paths = paired_paths_from_meta_info_file([self.lq_folder, self.gt_folder], ['lq', 'gt'],
-                                                          self.opt['meta_info_file'], self.filename_tmpl)
+            if self.input_gt_folder:
+                self.paths = paired_paths_from_meta_info_file([self.lq_folder, self.gt_folder, self.input_gt_folder], ['lq', 'gt', 'input_gt'],
+                                                              self.opt['meta_info_file'], self.filename_tmpl)
+            else:
+                self.paths = paired_paths_from_meta_info_file([self.lq_folder, self.gt_folder], ['lq', 'gt'],
+                                                              self.opt['meta_info_file'], self.filename_tmpl)
         else:
-            self.paths = paired_paths_from_folder([self.lq_folder, self.gt_folder], ['lq', 'gt'], self.filename_tmpl)
+            if self.input_gt_folder:
+                self.paths = paired_paths_from_three_folders([self.lq_folder, self.gt_folder, self.input_gt_folder], ['lq', 'gt', 'input_gt'], self.filename_tmpl)
+            else:
+                self.paths = paired_paths_from_folder([self.lq_folder, self.gt_folder], ['lq', 'gt'], self.filename_tmpl)
 
     def __getitem__(self, index):
         if self.file_client is None:
@@ -78,6 +138,14 @@ class PairedImageIRDataset(data.Dataset):
         img_bytes = self.file_client.get(lq_path, 'lq')
         img_lq = imfrombytes(img_bytes, float32=True)
 
+        # 读取 input_gt 图像
+        input_gt_path = None
+        img_input_gt = None
+        if 'input_gt_path' in self.paths[index]:
+            input_gt_path = self.paths[index]['input_gt_path']
+            img_bytes = self.file_client.get(input_gt_path, 'input_gt')
+            img_input_gt = imfrombytes(img_bytes, float32=True)
+
         # augmentation for training
         if self.opt['phase'] == 'train':
             gt_size = self.opt['gt_size']
@@ -85,11 +153,19 @@ class PairedImageIRDataset(data.Dataset):
             # equal in deblurring
             # img_gt, img_lq = padding(img_gt, img_lq, gt_size)
 
+            # # random crop
+            # img_gt, img_lq = paired_random_crop(img_gt, img_lq, gt_size, scale, gt_path)
+            # # flip, rotation
+            # # img_gt, img_lq = augment([img_gt, img_lq], self.opt['use_hflip'], self.opt['use_rot'])
+            # img_gt, img_lq = random_augmentation(img_gt, img_lq)        # 原数据增强调用
+
             # random crop
-            img_gt, img_lq = paired_random_crop(img_gt, img_lq, gt_size, scale, gt_path)
-            # flip, rotation
-            # img_gt, img_lq = augment([img_gt, img_lq], self.opt['use_hflip'], self.opt['use_rot'])
-            img_gt, img_lq = random_augmentation(img_gt, img_lq)        # 原数据增强调用
+            if img_input_gt is not None:
+                img_gt, img_lq, img_input_gt = paired_random_crop(img_gt, img_lq, img_input_gt, gt_size, scale, gt_path)
+                img_gt, img_lq, img_input_gt = random_augmentation(img_gt, img_lq, img_input_gt)
+            else:
+                img_gt, img_lq = paired_random_crop(img_gt, img_lq, gt_size, scale, gt_path)
+                img_gt, img_lq = random_augmentation(img_gt, img_lq)
 
         # # color space transform
         # if 'color' in self.opt and self.opt['color'] == 'y':
@@ -100,15 +176,26 @@ class PairedImageIRDataset(data.Dataset):
         # TODO: It is better to update the datasets, rather than force to crop
         if self.opt['phase'] != 'train':
             img_gt = img_gt[0:img_lq.shape[0] * scale, 0:img_lq.shape[1] * scale, :]
+            if img_input_gt is not None:
+                img_input_gt = img_input_gt[0:img_lq.shape[0] * scale, 0:img_lq.shape[1] * scale, :]
 
         # BGR to RGB, HWC to CHW, numpy to tensor
-        img_gt, img_lq = img2tensor([img_gt, img_lq], bgr2rgb=True, float32=True)
+        if img_input_gt is not None:
+            img_gt, img_lq, img_input_gt = img2tensor([img_gt, img_lq, img_input_gt], bgr2rgb=True, float32=True)
+        else:
+            img_gt, img_lq = img2tensor([img_gt, img_lq], bgr2rgb=True, float32=True)
+
         # normalize
         if self.mean is not None or self.std is not None:
             normalize(img_lq, self.mean, self.std, inplace=True)
             normalize(img_gt, self.mean, self.std, inplace=True)
+            if img_input_gt is not None:
+                normalize(img_input_gt, self.mean, self.std, inplace=True)
 
-        return {'lq': img_lq, 'gt': img_gt, 'lq_path': lq_path, 'gt_path': gt_path}
+        if img_input_gt is not None:
+            return {'lq': img_lq, 'gt': img_gt, 'input_gt': img_input_gt, 'lq_path': lq_path, 'gt_path': gt_path, 'input_gt_path': input_gt_path}
+        else:
+            return {'lq': img_lq, 'gt': img_gt, 'lq_path': lq_path, 'gt_path': gt_path}
 
     def __len__(self):
         return len(self.paths)

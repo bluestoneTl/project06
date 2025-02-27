@@ -1,8 +1,8 @@
 import cv2
 import os
 # python canny.py   
-input_folder = "datasets/ZZCX_01_20/train_RGB/HQ"
-output_folder = "datasets/ZZCX_01_20/train/condition_edge"
+input_folder = "datasets/ZZCX_2_1/test/RGB_HQ"
+output_folder = "datasets/ZZCX_2_1/test/edge_HQ"
 
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)

@@ -93,7 +93,8 @@ class Pipeline:
         s_noise: float,
         eta: float,
         order: int,
-        condition: torch.Tensor  # 新增 condition 参数
+        condition: torch.Tensor,  # 新增 condition 参数
+        condition2: torch.Tensor,  # 新增 condition2 参数
     ) -> torch.Tensor:
         bs, _, h0, w0 = cond_img.shape
         # 1. Pad condition image for VAE encoding (scale factor = 8)
@@ -120,6 +121,7 @@ class Pipeline:
                 cond_img,
                 [pos_prompt] * bs,
                 condition,
+                condition2,
                 vae_encoder_tiled,
                 vae_encoder_tile_size,
             )
@@ -127,6 +129,7 @@ class Pipeline:
                 cond_img,
                 [neg_prompt] * bs,
                 condition,
+                condition2,
                 vae_encoder_tiled,
                 vae_encoder_tile_size,
             )
@@ -266,7 +269,8 @@ class Pipeline:
         s_noise: float,
         eta: float,
         order: int,
-        condition: torch.Tensor  # 新增 condition 参数
+        condition: torch.Tensor,  # 新增 condition 参数
+        condition2: torch.Tensor, # 新增 condition2 参数
     ) -> np.ndarray:
         lq_tensor = (
             torch.tensor(lq, dtype=torch.float32, device=self.device)
@@ -308,7 +312,8 @@ class Pipeline:
             s_noise,
             eta,
             order,
-            condition  # 传递 feature 给 apply_cldm 方法
+            condition,  # 传递 feature 给 apply_cldm 方法
+            condition2,  # 传递 feature 给 apply_cldm 方法
         )
         sample = F.interpolate(
             wavelet_reconstruction((sample + 1) / 2, cond_img),

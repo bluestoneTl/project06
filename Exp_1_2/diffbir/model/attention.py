@@ -279,23 +279,23 @@ class BasicTransformerBlock(nn.Module):
         )
 
     def _forward(self, x, context=None, rgb=None):
-        # x = (
-        #     self.attn1(
-        #         self.norm1(x), context=context if self.disable_self_attn else None
-        #     )
-        #     + x
-        # )
-        # x = self.attn2(self.norm2(x), context=context) + x
-        # x = self.ff(self.norm3(x)) + x
         x = (
-            self.attn_rgb1(
-                self.norm1(x), context=rgb if self.disable_self_attn else None
+            self.attn1(
+                self.norm1(x), context=context if self.disable_self_attn else None
             )
             + x
         )
-        if rgb is not None:
-            x = self.attn_rgb2(self.norm2(x), context=rgb) + x  # 新增处理rgb特征的交叉注意力 【融合RGB图像方法二】
+        x = self.attn2(self.norm2(x), context=context) + x
         x = self.ff(self.norm3(x)) + x
+        # x = (
+        #     self.attn_rgb1(
+        #         self.norm1(x), context=rgb if self.disable_self_attn else None
+        #     )
+        #     + x
+        # )
+        # if rgb is not None:
+        #     x = self.attn_rgb2(self.norm2(x), context=rgb) + x  # 新增处理rgb特征的交叉注意力 【融合RGB图像方法二】
+        # x = self.ff(self.norm3(x)) + x
         return x
 
 
@@ -379,7 +379,7 @@ class SpatialTransformer(nn.Module):
         if self.use_linear:
             x = self.proj_in(x)
         for i, block in enumerate(self.transformer_blocks):
-            # x = block(x, context=context[i]) 
+            x = block(x, context=context[i]) 
             # x = block(x, rgb=rgb[i])            # 【融合RGB图像方法二】  block不能重复用
         if self.use_linear:
             x = self.proj_out(x)

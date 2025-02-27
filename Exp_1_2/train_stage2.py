@@ -11,13 +11,14 @@ from accelerate.utils import set_seed
 from einops import rearrange
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
+from basicsr.models import build_model
 
 from diffbir.model import ControlLDM, SwinIR, Diffusion
 from diffbir.utils.common import instantiate_from_config, to, log_txt_as_img
 from diffbir.sampler import SpacedSampler
 from hi_diff.models.HI_Diff_S2_model import HI_Diff_S2
 
-
+# python train_stage2.py --config configs/train/train_stage2.yaml
 def main(args) -> None:
     # Setup accelerator:
     accelerator = Accelerator(split_batches=True)
@@ -72,19 +73,22 @@ def main(args) -> None:
     #     p.requires_grad = False
     # if accelerator.is_main_process:
     #     print(f"load SwinIR from {cfg.train.swinir_path}")
-    hi_diff: HI_Diff_S2 = instantiate_from_config(cfg.model.hi_diff)
-    sd = torch.load(cfg.train.hi_diff_path, map_location="cpu")
-    if "state_dict" in sd:
-        sd = sd["state_dict"]
-    sd = {
-        (k[len("module.") :] if k.startswith("module.") else k): v
-        for k, v in sd.items()
-    }
-    hi_diff.load_state_dict(sd, strict=True)
-    for p in hi_diff.parameters():
-        p.requires_grad = False
-    if accelerator.is_main_process:
-        print(f"load hi_diff from {cfg.train.hi_diff_path}")
+    # hi_diff: HI_Diff_S2 = instantiate_from_config(cfg.model.hi_diff)
+
+    # hi_diff = HI_Diff_S2(opt=cfg.model.hi_diff)
+    # sd = torch.load(cfg.train.hi_diff_path, map_location="cpu")
+    # if "state_dict" in sd:
+    #     sd = sd["state_dict"]
+    # sd = {
+    #     (k[len("module.") :] if k.startswith("module.") else k): v
+    #     for k, v in sd.items()
+    # }
+    # hi_diff.load_state_dict(sd, strict=True)
+    # for p in hi_diff.parameters():
+    #     p.requires_grad = False
+    # if accelerator.is_main_process:
+    #     print(f"load hi_diff from {cfg.train.hi_diff_path}")
+    hi_diff = build_model(cfg.model.hi_diff)
 
     diffusion: Diffusion = instantiate_from_config(cfg.model.diffusion)
 
@@ -153,9 +157,6 @@ def main(args) -> None:
                 hi_diff.feed_data({"lq": lq})
                 hi_diff.test()
                 clean = hi_diff.output
-                import time 
-                print("clean shape", clean.shape)
-                time.sleep(1000)
                 cond = pure_cldm.prepare_condition(clean, prompt, rgb)      # 【融合RGB图像方法二】
                 # cond shape: torch.Size([16, 4, 64, 64])
                 #  对RGB执行操作  和 cond 进行concat  卷积下降 作为新的condtition   

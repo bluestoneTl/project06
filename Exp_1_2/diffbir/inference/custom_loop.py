@@ -15,7 +15,8 @@ from ..pipeline import (
     Pipeline,
 )
 from ..model import SwinIR, ControlLDM, Diffusion
-
+from basicsr.models import build_model
+from hi_diff.models.HI_Diff_S2_model import HI_Diff_S2
 
 class CustomInferenceLoop(InferenceLoop):
 
@@ -73,14 +74,54 @@ class CustomInferenceLoop(InferenceLoop):
         self.diffusion.to(self.args.device)
 
     def load_cleaner(self) -> None:
-        # NOTE: Use SwinIR as stage-1 model. Change it if you want.
-        self.cleaner: SwinIR = instantiate_from_config(self.train_cfg.model.swinir)
-        weight = torch.load(self.train_cfg.train.swinir_path, map_location="cpu")
-        if "state_dict" in weight:              # 【与denose不同点1】
-            weight = weight["state_dict"]
-        if list(weight.keys())[0].startswith("module"):       
-            weight = {k[len("module.") :]: v for k, v in weight.items()}                                
-        self.cleaner.load_state_dict(weight, strict=True)
+        # # NOTE: Use SwinIR as stage-1 model. Change it if you want.
+        # self.cleaner: SwinIR = instantiate_from_config(self.train_cfg.model.swinir)
+        # weight = torch.load(self.train_cfg.train.swinir_path, map_location="cpu")
+        # if "state_dict" in weight:              # 【与denose不同点1】
+        #     weight = weight["state_dict"]
+        # if list(weight.keys())[0].startswith("module"):       
+        #     weight = {k[len("module.") :]: v for k, v in weight.items()}                                
+        # self.cleaner.load_state_dict(weight, strict=True)
+        # self.cleaner.eval().to(self.args.device)
+
+        # 加载 Hi_Diff 模型
+        self.cleaner = build_model(self.train_cfg.model.hi_diff)
+        sub_models = {
+            'net_g': {
+                'path': self.train_cfg.model.hi_diff.path.pretrain_network_g,
+                'strict': self.train_cfg.model.hi_diff.path.strict_load_g
+            },
+            'net_le_dm': {
+                'path': self.train_cfg.model.hi_diff.path.pretrain_network_le_dm,
+                'strict': self.train_cfg.model.hi_diff.path.strict_load_le_dm
+            },
+            'net_d': {
+                'path': self.train_cfg.model.hi_diff.path.pretrain_network_d,
+                'strict': self.train_cfg.model.hi_diff.path.strict_load_d
+            }
+        }
+        for model_name, info in sub_models.items():
+            weight_path = info['path']
+            strict_load = info['strict']
+
+            if weight_path is not None:
+                try:
+                    # 加载权重
+                    weight = torch.load(weight_path, map_location="cpu")
+                    if "state_dict" in weight:
+                        weight = weight["state_dict"]
+                    if list(weight.keys())[0].startswith("module"):
+                        weight = {k[len("module."):]: v for k, v in weight.items()}
+
+                    # 获取子模型实例
+                    sub_model = getattr(self.cleaner, model_name)
+
+                    # 加载权重到子模型
+                    sub_model.load_state_dict(weight, strict=strict_load)
+                    print(f"Successfully loaded weights for {model_name} from {weight_path}")
+                except Exception as e:
+                    print(f"Error loading weights for {model_name} from {weight_path}: {e}")
+
         self.cleaner.eval().to(self.args.device)
 
     def load_pipeline(self) -> None:
