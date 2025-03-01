@@ -154,7 +154,7 @@ def main(args) -> None:
                 0, diffusion.num_timesteps, (z_0.shape[0],), device=device
             )
 
-            # loss = diffusion.p_losses(cldm, z_0, t, cond_aug)       # 这里用cldm模型，计算损失，后续关键步骤的入口
+            # loss = diffusion.p_losses(cldm, z_0, t, cond_aug)       # 潜在空间损失
 
             #====图像级别损失====#
             noise = torch.randn_like(z_0)
