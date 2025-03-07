@@ -55,10 +55,11 @@ python -u inference.py \
 --ckpt myexperiments/experiment6/stage2_1/checkpoints/0030000.pt \
 --captioner none \
 --cfg_scale 4.0 \
+--strength 4.0 \
 --noise_aug 0 \
 --input datasets/ZZCX_2_1/test/LQ \
 --condition_path datasets/ZZCX_2_1/test/RGB_HQ_condition \
---output results/2.26/custom_1 \
+--output results/3.4/strength_4.0 \
 --precision fp32 \
 --sampler spaced \
 --steps 50 \

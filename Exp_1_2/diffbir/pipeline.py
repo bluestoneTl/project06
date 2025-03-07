@@ -396,7 +396,7 @@ class SwinIRPipeline(Pipeline):
             # 使用 Hi_Diff 模型进行推理
             self.cleaner.feed_data({"lq": lq})
             self.cleaner.test()
-            output = self.cleaner.output[:, :, :h0, :w0]
+            output = self.cleaner.output[:, :, :h0, :w0] 
         else:
             tiled_model = make_tiled_fn(
                 self.cleaner,

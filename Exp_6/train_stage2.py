@@ -16,7 +16,7 @@ from diffbir.model import ControlLDM, SwinIR, Diffusion
 from diffbir.utils.common import instantiate_from_config, to, log_txt_as_img
 from diffbir.sampler import SpacedSampler
 
-
+# python train_stage2.py --config configs/train/train_stage2.yaml
 def main(args) -> None:
     # Setup accelerator:
     accelerator = Accelerator(split_batches=True)
@@ -76,7 +76,23 @@ def main(args) -> None:
 
     # Setup optimizer:
     # opt = torch.optim.AdamW(cldm.controlnet.parameters(), lr=cfg.train.learning_rate)
-    parameters_to_optimize = list(cldm.controlnet.parameters()) + list(cldm.vae.parameters())  # 【新增CFW】
+
+    #=== 实验6，更新参数有encoder、decoder、post_quant_conv ====#
+    # parameters_to_optimize = list(cldm.controlnet.parameters())
+    # + list(cldm.vae.encoder.parameters()) 
+    # + list(cldm.vae.decoder.parameters()) 
+    # + list(cldm.vae.post_quant_conv.parameters()) # 【新增CFW】
+
+    #=== 实验7，更新参数只有CFW模块的参数
+    fuse_layer_params = []
+    num_resolutions = cldm.vae.decoder.num_resolutions
+    for i_level in range(num_resolutions):
+        if i_level != num_resolutions-1:
+            if i_level != 0:
+                fuse_layer = getattr(cldm.vae.decoder, 'fusion_layer_{}'.format(i_level))
+                fuse_layer_params.extend(list(fuse_layer.parameters()))
+    parameters_to_optimize = list(cldm.controlnet.parameters()) + list(fuse_layer_params)
+
     opt = torch.optim.AdamW(parameters_to_optimize, lr=cfg.train.learning_rate)
 
     # Setup data:
@@ -160,7 +176,7 @@ def main(args) -> None:
             noise = torch.randn_like(z_0)
             x_noisy = diffusion.q_sample(x_start=z_0, t=t, noise=noise)
             model_output = cldm(x_noisy, t, cond_aug)
-
+            
             # 解码回图像空间
             decoded_output = pure_cldm.vae_decode(model_output, cond_aug["enc_fea"])
 
@@ -224,17 +240,17 @@ def main(args) -> None:
                     )
                     if accelerator.is_main_process:
                         for tag, image in [
-                            ("image/samples", (pure_cldm.vae_decode(z) + 1) / 2),
+                            ("image/samples", (pure_cldm.vae_decode(z, cond_aug["enc_fea"]) + 1) / 2),
                             ("image/gt", (log_gt + 1) / 2),
                             ("image/lq", log_lq),
                             ("image/condition", log_clean),
                             (
                                 "image/condition_decoded",
-                                (pure_cldm.vae_decode(log_cond["c_img"]) + 1) / 2,
+                                (pure_cldm.vae_decode(log_cond["c_img"], cond_aug["enc_fea"]) + 1) / 2,
                             ),
                             (
                                 "image/condition_aug_decoded",
-                                (pure_cldm.vae_decode(log_cond_aug["c_img"]) + 1) / 2,
+                                (pure_cldm.vae_decode(log_cond_aug["c_img"], cond_aug["enc_fea"]) + 1) / 2,
                             ),
                             (
                                 "image/prompt",

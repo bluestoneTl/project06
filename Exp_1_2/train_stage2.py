@@ -73,21 +73,7 @@ def main(args) -> None:
     #     p.requires_grad = False
     # if accelerator.is_main_process:
     #     print(f"load SwinIR from {cfg.train.swinir_path}")
-    # hi_diff: HI_Diff_S2 = instantiate_from_config(cfg.model.hi_diff)
 
-    # hi_diff = HI_Diff_S2(opt=cfg.model.hi_diff)
-    # sd = torch.load(cfg.train.hi_diff_path, map_location="cpu")
-    # if "state_dict" in sd:
-    #     sd = sd["state_dict"]
-    # sd = {
-    #     (k[len("module.") :] if k.startswith("module.") else k): v
-    #     for k, v in sd.items()
-    # }
-    # hi_diff.load_state_dict(sd, strict=True)
-    # for p in hi_diff.parameters():
-    #     p.requires_grad = False
-    # if accelerator.is_main_process:
-    #     print(f"load hi_diff from {cfg.train.hi_diff_path}")
     hi_diff = build_model(cfg.model.hi_diff)
 
     diffusion: Diffusion = instantiate_from_config(cfg.model.diffusion)

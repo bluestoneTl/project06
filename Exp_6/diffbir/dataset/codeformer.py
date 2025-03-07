@@ -27,7 +27,7 @@ class CodeformerDataset(data.Dataset):
         file_list_LQ: str,        
         # file_list_condition: str,           # 新增的条件文件列表
         file_list_RGB: str,                     # 【融合RGB图像方法二】
-        file_list_edge: str,                    # 【融合边缘图】
+        # file_list_edge: str,                    # 【融合边缘图】
         file_backend_cfg: Mapping[str, Any],
         out_size: int,
         # 以下这些参数原本用于生成LQ图像，现暂时保留
@@ -47,12 +47,12 @@ class CodeformerDataset(data.Dataset):
         self.file_list_LQ = file_list_LQ
         # self.file_list_condition = file_list_condition
         self.file_list_RGB = file_list_RGB
-        self.file_list_edge = file_list_edge
+        # self.file_list_edge = file_list_edge
         self.image_files_HQ = load_file_list(file_list_HQ)
         self.image_files_LQ = load_file_list(file_list_LQ)
         # self.image_files_condition = load_file_list(file_list_condition)    # 新增的条件文件列表
         self.image_files_RGB = load_file_list(file_list_RGB)
-        self.image_files_edge = load_file_list(file_list_edge)
+        # self.image_files_edge = load_file_list(file_list_edge)
         self.file_backend = instantiate_from_config(file_backend_cfg)
         self.out_size = out_size
         self.crop_type = crop_type

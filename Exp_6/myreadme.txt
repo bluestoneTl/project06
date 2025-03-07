@@ -57,8 +57,8 @@ python -u inference.py \
 --cfg_scale 4.0 \
 --noise_aug 0 \
 --input datasets/ZZCX_2_1/test/LQ \
---condition_path datasets/ZZCX_2_1/test/condition_swinir_LQ \
---output results/2.26/custom_5 \
+--condition_path datasets/ZZCX_2_1/test/RGB_HQ_condition \
+--output results/3.4/Exp_6 \
 --precision fp32 \
 --sampler spaced \
 --steps 50 \

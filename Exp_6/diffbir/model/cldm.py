@@ -108,7 +108,7 @@ class ControlLDM(nn.Module):
     ) -> torch.Tensor:
         if tiled:
             def encoder(x: torch.Tensor) -> DiagonalGaussianDistribution:
-                h = VAEHook(
+                h, enc_fea = VAEHook(
                     self.vae.encoder,
                     tile_size=tile_size,
                     is_decoder=False,
@@ -118,25 +118,30 @@ class ControlLDM(nn.Module):
                 )(x)
                 moments = self.vae.quant_conv(h)
                 posterior = DiagonalGaussianDistribution(moments)
-                return posterior
+                return posterior, enc_fea           
         else:
             encoder = self.vae.encode
 
+        # if sample:
+        #     z = encoder(image).sample() * self.scale_factor        # 【CFW新增】
+        # else:
+        #     z = encoder(image).mode() * self.scale_factor
+        posterior, enc_fea = encoder(image)    # 【CFW新增】
         if sample:
-            z, enc_fea = encoder(image).sample() * self.scale_factor        # 【CFW新增】
+            z = posterior.sample() * self.scale_factor
         else:
-            z, enc_fea = encoder(image).mode() * self.scale_factor
+            z = posterior.mode() * self.scale_factor
         return z, enc_fea
 
     def vae_decode(
         self,
         z: torch.Tensor,
-        enc_fea: torch.Tensor,
+        enc_fea: torch.Tensor = None,
         tiled: bool = False,
         tile_size: int = -1,
     ) -> torch.Tensor:
         if tiled:
-            def decoder(z):
+            def decoder(z, enc_fea):
                 z = self.vae.post_quant_conv(z)
                 dec = VAEHook(
                     self.vae.decoder,
@@ -145,11 +150,11 @@ class ControlLDM(nn.Module):
                     fast_decoder=False,
                     fast_encoder=False,
                     color_fix=True,
-                )(z)
+                )(z, enc_fea)
                 return dec
         else:
             decoder = self.vae.decode
-        return decoder(z / self.scale_factor, enc_fea / self.scale_factor)
+        return decoder(z / self.scale_factor, enc_fea )
 
     def prepare_condition(
         self,
