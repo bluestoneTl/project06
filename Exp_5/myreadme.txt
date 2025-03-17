@@ -52,13 +52,13 @@ python -u inference.py \
 --upscale 1 \
 --version custom \
 --train_cfg configs/train/train_stage2.yaml \
---ckpt experiment/experiment_1/stage2/checkpoints/0030000.pt \
+--ckpt experiment/experiment_VAE_test/stage2/checkpoints/0030000.pt \
 --captioner none \
 --cfg_scale 4.0 \
 --noise_aug 0 \
 --input datasets/ZZCX_2_1/test/LQ \
 --condition_path datasets/ZZCX_2_1/test/condition_swinir_LQ \
---output results/2.26/custom_5 \
+--output results/3.10/vae_test \
 --precision fp32 \
 --sampler spaced \
 --steps 50 \
@@ -135,3 +135,5 @@ find datasets/ZZCX_2_1/train/condition_swinir_LQ -type f > datasets/ZZCX_2_1/tra
 
 find datasets/ZZCX_2_1/test/LQ -type f > datasets/ZZCX_2_1/test/LQ.list
 find datasets/ZZCX_2_1/test/HQ -type f > datasets/ZZCX_2_1/test/HQ.list
+find datasets/ZZCX_2_1/test/RGB_HQ_condition -type f > datasets/ZZCX_2_1/test/RGB_HQ_condition.list
+find inputs/test_img_nature -type f > inputs/test_img_nature.list

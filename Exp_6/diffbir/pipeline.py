@@ -227,9 +227,11 @@ class Pipeline:
         ):
             print("[VAE Decoder]: the input size is tiny and unnecessary to tile.")
             vae_decoder_tiled = False
+
         with VRAMPeakMonitor("decoding generated latent"):
             x = self.cldm.vae_decode(
                 z,
+                cond["enc_fea"],
                 vae_decoder_tiled,
                 vae_decoder_tile_size // 8,
             )

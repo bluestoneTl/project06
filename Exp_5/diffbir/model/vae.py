@@ -8,11 +8,13 @@ from typing import Optional, Any
 
 from .distributions import DiagonalGaussianDistribution
 from .config import Config, AttnMode
-
+from typing import Tuple, Set, List, Dict
 
 def nonlinearity(x):
     # swish
-    return x * torch.sigmoid(x)
+    # return x * torch.sigmoid(x)
+    return F.leaky_relu(x, negative_slope=0.2)
+    # return F.elu(x, alpha=alpha)
 
 
 def Normalize(in_channels, num_groups=32):
@@ -600,40 +602,3 @@ class AutoencoderKL(nn.Module):
             z = posterior.mode()
         dec = self.decode(z)
         return dec, posterior
-
-# 对于 AutoencoderKL 类 的 encode 方法的解释
-    def encode(self, x):
-        # x shape: torch.Size([16, 3, 512, 512])
-        h = self.encoder(x)
-        # 将输入 x 传入 encoder 中进行处理。
-        # encoder 是 Encoder 类的实例，首先进入 Encoder 的 __init__ 方法进行初始化，根据传入的 ddconfig 配置参数确定模型结构。
-        # 1. 初始卷积层：
-        #    - 输入 x 经过 self.conv_in 卷积层，根据 ddconfig 中 in_channels 为 3，ch 为 128，
-        #    - 该卷积层是 nn.Conv2d(in_channels=3, out_channels=128, kernel_size=3, stride=1, padding=1)，
-        #    - 输出的特征图通道数变为 128，空间尺寸不变，此时形状为 [16, 128, 512, 512]。
-        # 2. 下采样层级：
-        #    - 共有 self.num_resolutions 个下采样层级，根据 ddconfig 中 ch_mult 列表长度确定为 4 层。
-        #    - 在每个层级中，有 self.num_res_blocks 个残差块，这里为 2 个。
-        #    - 每个层级的残差块处理输入特征图时，假设不改变特征图形状（在满足一定条件下）。
-        #    - 每个层级处理完后，若不是最后一层，会进行下采样操作，下采样使空间尺寸减半，通道数根据 ch_mult 变化。
-        #    - 经过 4 个下采样层级后，特征图形状变为 [16, 512, 64, 64]（通道数变为 128 * 4 = 512，空间尺寸经过多次下采样变为 64x64）。
-        # 3. 中间模块：
-        #    - 中间模块包含 2 个残差块和 1 个注意力模块（但由于配置中不使用注意力模块，注意力模块不产生实际影响）。
-        #    - 经过中间模块处理后，特征图形状仍为 [16, 512, 64, 64]。
-        # 4. 输出模块：
-        #    - 先经过归一化层和激活函数，形状不变。
-        #    - 再经过 self.conv_out 卷积层，根据 ddconfig 中 z_channels 为 4，double_z 为 true，
-        #    - 该卷积层是 nn.Conv2d(in_channels=512, out_channels=2 * 4 = 8, kernel_size=3, stride=1, padding=1)，
-        #    - 输出特征图形状变为 [16, 8, 64, 64]。
-        # 最终 h 的形状为 [16, 8, 64, 64]。
-        moments = self.quant_conv(h)
-        # 将 encoder 输出的 h 传入 self.quant_conv 卷积层进行处理。
-        # self.quant_conv 是 nn.Conv2d(2 * ddconfig["z_channels"], 2 * embed_dim, 1)，
-        # 已知 ddconfig["z_channels"] 为 4，embed_dim 为 4，所以该卷积层是 nn.Conv2d(8, 8, 1)，
-        # 处理后特征图的形状不变，moments 形状仍为 [16, 8, 64, 64]。
-        posterior = DiagonalGaussianDistribution(moments)
-        # 使用 DiagonalGaussianDistribution 类对 moments 进行处理，得到一个对角高斯分布对象 posterior。
-        # 在 DiagonalGaussianDistribution 的 __init__ 方法中，将 moments 按通道维度分成均值和对数方差两部分，
-        # 并对对数方差进行了范围限制，同时计算了标准差和方差。
-        # 调用 posterior.mode() 方法后，会返回均值，此时形状为 [16, 4, 64, 64]（因为均值是按通道维度分成两部分后的一半）。
-        return posterior

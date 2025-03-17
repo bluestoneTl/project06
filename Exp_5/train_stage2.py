@@ -43,6 +43,22 @@ def main(args) -> None:
             f"missing weights: {missing}"
         )
 
+    # 加载预训练的 VAE 权重
+    if hasattr(cfg.train, 'vae_path') and cfg.train.vae_path:
+        vae_sd = torch.load(cfg.train.vae_path, map_location="cpu")
+        if "state_dict" in vae_sd:
+            vae_sd = vae_sd["state_dict"]
+        vae_sd = {
+            (k[len("module."):] if k.startswith("module.") else k): v
+            for k, v in vae_sd.items()
+        }
+        cldm.vae.load_state_dict(vae_sd, strict=True)
+        if accelerator.is_main_process:
+            print(f"load VAE from {cfg.train.vae_path}")
+    else:
+        if accelerator.is_main_process:
+            print("Training VAE from scratch.") # 从头开始训练
+
     if cfg.train.resume:
         cldm.load_controlnet_from_ckpt(torch.load(cfg.train.resume, map_location="cpu"))
         if accelerator.is_main_process:
@@ -75,7 +91,11 @@ def main(args) -> None:
     diffusion: Diffusion = instantiate_from_config(cfg.model.diffusion)
 
     # Setup optimizer:
-    opt = torch.optim.AdamW(cldm.controlnet.parameters(), lr=cfg.train.learning_rate)
+    # opt = torch.optim.AdamW(cldm.controlnet.parameters(), lr=cfg.train.learning_rate)
+
+    # ===== 【VAE test】 =====
+    parameters_to_optimize = list(cldm.controlnet.parameters()) + list(cldm.vae.parameters())
+    opt = torch.optim.AdamW(parameters_to_optimize, lr=cfg.train.learning_rate)
 
     # Setup data:
     dataset = instantiate_from_config(cfg.dataset.train)
@@ -106,6 +126,8 @@ def main(args) -> None:
     step_loss = []
     epoch = 0
     epoch_loss = []
+    step_vae_loss = []  # 用于记录每个step的vae_loss
+    epoch_vae_loss = []  # 用于记录每个epoch的vae_loss
     sampler = SpacedSampler(
         diffusion.betas, diffusion.parameterization, rescale_cfg=False
     )
@@ -159,8 +181,22 @@ def main(args) -> None:
             # import time 
             # time.sleep(100)
             loss = diffusion.p_losses(cldm, z_0, t, cond_aug)       # 这里用cldm模型，计算损失，后续关键步骤的入口
+
+            # 将解码器的输出与原始输入比较。目的是更新vae.decoder的参数
+            reconstructed = pure_cldm.vae_decode(z_0)         
+            vae_loss = torch.nn.functional.mse_loss(reconstructed, gt)   
+            loss = loss + vae_loss 
+
             opt.zero_grad()
             accelerator.backward(loss)
+
+            # 计算 VAE 参数梯度的范数
+            vae_grad_norm = 0
+            for name, param in pure_cldm.vae.named_parameters():
+                if param.grad is not None:
+                    vae_grad_norm += param.grad.data.norm(2).item() ** 2
+            vae_grad_norm = vae_grad_norm ** 0.5
+
             opt.step()
 
             accelerator.wait_for_everyone()
@@ -168,9 +204,11 @@ def main(args) -> None:
             global_step += 1
             step_loss.append(loss.item())
             epoch_loss.append(loss.item())
+            step_vae_loss.append(vae_loss.item())  # 记录当前step的vae_loss
+            epoch_vae_loss.append(vae_loss.item())  # 记录epoch的vae_loss
             pbar.update(1)
             pbar.set_description(
-                f"Epoch: {epoch:04d}, Global Step: {global_step:07d}, Loss: {loss.item():.6f}"
+                f"Epoch: {epoch:04d}, Global Step: {global_step:07d}, Loss: {loss.item():.6f}, VAE Loss: {vae_loss.item():.6f}, VAE Grad Norm: {vae_grad_norm:.6f}"
             )
 
             # Log loss values:
@@ -183,16 +221,32 @@ def main(args) -> None:
                     .mean()
                     .item()
                 )
+                avg_vae_loss = (
+                    accelerator.gather(
+                        torch.tensor(step_vae_loss, device=device).unsqueeze(0)
+                    )
+                    .mean()
+                    .item()
+                )
                 step_loss.clear()
+                step_vae_loss.clear()  # 清空当前记录的vae_loss
                 if accelerator.is_main_process:
                     writer.add_scalar("loss/loss_simple_step", avg_loss, global_step)
+                    writer.add_scalar("loss/vae_loss_simple_step", avg_vae_loss, global_step)  # 记录平均vae_loss到TensorBoard
+                    writer.add_scalar("grad/vae_grad_norm", vae_grad_norm, global_step)  # 记录 VAE 梯度范数到 TensorBoard
 
             # Save checkpoint:
             if global_step % cfg.train.ckpt_every == 0 and global_step > 0:
                 if accelerator.is_main_process:
-                    checkpoint = pure_cldm.controlnet.state_dict()
+                    checkpoint = pure_cldm.controlnet.state_dict()        
                     ckpt_path = f"{ckpt_dir}/{global_step:07d}.pt"
                     torch.save(checkpoint, ckpt_path)
+
+                    # 保存vae
+                    checkpoint_vae = pure_cldm.vae.state_dict()        
+                    ckpt_path_vae = f"{ckpt_dir}/{global_step:07d}_vae.pt"
+                    torch.save(checkpoint_vae, ckpt_path_vae)
+
 
             if global_step % cfg.train.image_every == 0 or global_step == 1:
                 N = 8
@@ -201,6 +255,10 @@ def main(args) -> None:
                 log_cond_aug = {k: v[:N] for k, v in cond_aug.items()}
                 log_gt, log_lq = gt[:N], lq[:N]
                 log_prompt = prompt[:N]
+
+                # 查看【vae_test】的结果
+                log_reconstructed = reconstructed[:N]       # gt 解码后的结果
+                
                 cldm.eval()
                 with torch.no_grad():
                     z = sampler.sample(
@@ -231,6 +289,10 @@ def main(args) -> None:
                                 "image/prompt",
                                 (log_txt_as_img((512, 512), log_prompt) + 1) / 2,
                             ),
+                            (
+                                "image/reconstructed",
+                                (log_reconstructed + 1) / 2,
+                            ),
                         ]:
                             writer.add_image(tag, make_grid(image, nrow=4), global_step)
                 cldm.train()
@@ -245,9 +307,16 @@ def main(args) -> None:
             .mean()
             .item()
         )
+        avg_epoch_vae_loss = (
+            accelerator.gather(torch.tensor(epoch_vae_loss, device=device).unsqueeze(0))
+            .mean()
+            .item()
+        )
         epoch_loss.clear()
+        epoch_vae_loss.clear()  # 清空epoch记录的vae_loss
         if accelerator.is_main_process:
             writer.add_scalar("loss/loss_simple_epoch", avg_epoch_loss, global_step)
+            writer.add_scalar("loss/vae_loss_simple_epoch", avg_epoch_vae_loss, global_step)  # 记录epoch的平均vae_loss
 
     if accelerator.is_main_process:
         print("done!")

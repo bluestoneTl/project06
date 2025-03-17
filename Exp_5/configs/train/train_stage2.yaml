@@ -103,11 +103,14 @@ dataset:
       # file_list: 
       # file_list_HQ: datasets/ZZCX_2_1/train/HQ.list
       # file_list_LQ: datasets/ZZCX_2_1/train/LQ.list
-      file_list_LQ: datasets/ZZCX_2_1/test/LQ.list
-      file_list_HQ: datasets/ZZCX_2_1/test/HQ.list
+      # file_list_LQ: datasets/ZZCX_2_1/test/LQ.list
+      # file_list_HQ: datasets/ZZCX_2_1/test/HQ.list
+      file_list_LQ: inputs/test_img_nature.list
+      file_list_HQ: inputs/test_img_nature.list
       # file_list_condition: datasets/ZZCX_01_20/train/condition_edge.list
       # file_list_condition: datasets/ZZCX_01_20/train/condition_RGB.list
-      file_list_RGB: datasets/ZZCX_2_1/train/condition_swinir_LQ.list
+      # file_list_RGB: datasets/ZZCX_2_1/train/condition_swinir_LQ.list
+      file_list_RGB:  datasets/ZZCX_2_1/test/RGB_HQ_condition.list
       file_list_edge: datasets/ZZCX_2_1/train_RGB/condition_edge.list
       file_backend_cfg:
         target: diffbir.dataset.file_backend.HardDiskBackend
@@ -128,17 +131,18 @@ train:
   # pretrained sd v2.1 path
   sd_path: weights/v2-1_512-ema-pruned.ckpt
   # experiment directory path
-  exp_dir: experiment/experiment_1/stage2
+  exp_dir: experiment/experiment_VAE_test_2/stage2
   # stage 1 swinir path.
   # In our paper, we use SwinIR trained on ImageNet-1k with codeformer degradation.
   swinir_path: weights/my_swinir.pt
   # swinir_path: weights/general_swinir_v1.ckpt
+  vae_path: ~
   learning_rate: 1e-4
   # ImageNet 1k (1.3M images)
   # batch size = 192, lr = 1e-4, total training steps = 25k
   # Our filtered laion2b-en (15M images)
   # batch size = 256, lr = 1e-4 (first 30k), 1e-5 (next 50k), total training steps = 80k
-  batch_size: 16         # 256
+  batch_size: 8         # 256
   num_workers: 4
   train_steps: 30000     # 30000    1w加
   log_every: 50

@@ -58,9 +58,9 @@ python -u inference.py \
 --noise_aug 0 \
 --input datasets/ZZCX_2_1/test/LQ \
 --condition_path datasets/ZZCX_2_1/test/RGB_HQ_condition \
---output results/3.4/Exp_6 \
+--output results/3.4/Exp_6_1 \
 --precision fp32 \
---sampler spaced \
+--sampler spaced \ 
 --steps 50 \
 --pos_prompt '' \
 --neg_prompt 'low quality, blurry, low-resolution, noisy, unsharp, weird textures' 
@@ -135,3 +135,8 @@ find datasets/ZZCX_2_1/train/condition_swinir_LQ -type f > datasets/ZZCX_2_1/tra
 
 find datasets/ZZCX_2_1/test/LQ -type f > datasets/ZZCX_2_1/test/LQ.list
 find datasets/ZZCX_2_1/test/HQ -type f > datasets/ZZCX_2_1/test/HQ.list
+
+
+find datasets/ZZCX_3_3/train/HQ -type f > datasets/ZZCX_3_3/train/HQ.list
+find datasets/ZZCX_3_3/train/LQ -type f > datasets/ZZCX_3_3/train/LQ.list
+find datasets/ZZCX_3_3/train_RGB/condition_HQ -type f > datasets/ZZCX_3_3/train_RGB/condition_RGB.list

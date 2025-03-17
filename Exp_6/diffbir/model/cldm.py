@@ -141,7 +141,7 @@ class ControlLDM(nn.Module):
         tile_size: int = -1,
     ) -> torch.Tensor:
         if tiled:
-            def decoder(z, enc_fea):
+            def decoder(z):
                 z = self.vae.post_quant_conv(z)
                 dec = VAEHook(
                     self.vae.decoder,
@@ -150,7 +150,7 @@ class ControlLDM(nn.Module):
                     fast_decoder=False,
                     fast_encoder=False,
                     color_fix=True,
-                )(z, enc_fea)
+                )(z)
                 return dec
         else:
             decoder = self.vae.decode

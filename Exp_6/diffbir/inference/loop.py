@@ -172,7 +172,7 @@ class InferenceLoop:
             "fp16": torch.float16,
             "bf16": torch.bfloat16,
         }[self.args.precision]
-
+        
         for (lq, condition) in self.load_lq():
             # prepare prompt
             with VRAMPeakMonitor("applying captioner"):

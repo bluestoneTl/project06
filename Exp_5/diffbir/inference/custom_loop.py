@@ -58,6 +58,16 @@ class CustomInferenceLoop(InferenceLoop):
 
         self.cldm.load_controlnet_from_ckpt(control_weight)
         print(f"load controlnet weight")
+
+        # load vae weight
+        vae_weight = torch.load(self.args.ckpt_vae, map_location="cpu")
+        if "state_dict" in vae_weight:
+            vae_weight = vae_weight["state_dict"]
+        if list(vae_weight.keys())[0].startswith("module"):
+            vae_weight = {k[len("module.") :]: v for k, v in vae_weight.items()}
+        self.cldm.vae.load_state_dict(vae_weight, strict=True)
+        print(f"load vae weight")
+
         self.cldm.eval().to(self.args.device)
         cast_type = {
             "fp32": torch.float32,

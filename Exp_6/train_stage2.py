@@ -78,20 +78,17 @@ def main(args) -> None:
     # opt = torch.optim.AdamW(cldm.controlnet.parameters(), lr=cfg.train.learning_rate)
 
     #=== 实验6，更新参数有encoder、decoder、post_quant_conv ====#
-    # parameters_to_optimize = list(cldm.controlnet.parameters())
-    # + list(cldm.vae.encoder.parameters()) 
-    # + list(cldm.vae.decoder.parameters()) 
-    # + list(cldm.vae.post_quant_conv.parameters()) # 【新增CFW】
+    parameters_to_optimize = list(cldm.controlnet.parameters()) + list(cldm.vae.encoder.parameters()) + list(cldm.vae.decoder.parameters()) + list(cldm.vae.post_quant_conv.parameters()) # 【新增CFW】
 
     #=== 实验7，更新参数只有CFW模块的参数
-    fuse_layer_params = []
-    num_resolutions = cldm.vae.decoder.num_resolutions
-    for i_level in range(num_resolutions):
-        if i_level != num_resolutions-1:
-            if i_level != 0:
-                fuse_layer = getattr(cldm.vae.decoder, 'fusion_layer_{}'.format(i_level))
-                fuse_layer_params.extend(list(fuse_layer.parameters()))
-    parameters_to_optimize = list(cldm.controlnet.parameters()) + list(fuse_layer_params)
+    # fuse_layer_params = []
+    # num_resolutions = cldm.vae.decoder.num_resolutions
+    # for i_level in range(num_resolutions):
+    #     if i_level != num_resolutions-1:
+    #         if i_level != 0:
+    #             fuse_layer = getattr(cldm.vae.decoder, 'fusion_layer_{}'.format(i_level))
+    #             fuse_layer_params.extend(list(fuse_layer.parameters()))
+    # parameters_to_optimize = list(cldm.controlnet.parameters()) + list(fuse_layer_params)
 
     opt = torch.optim.AdamW(parameters_to_optimize, lr=cfg.train.learning_rate)
 
@@ -226,6 +223,8 @@ def main(args) -> None:
                 log_cond_aug = {k: v[:N] for k, v in cond_aug.items()}
                 log_gt, log_lq = gt[:N], lq[:N]
                 log_prompt = prompt[:N]
+                log_decoded_output = decoded_output[:N]
+                log_model_output = model_output[:N]
                 cldm.eval()
                 with torch.no_grad():
                     z = sampler.sample(
@@ -256,6 +255,8 @@ def main(args) -> None:
                                 "image/prompt",
                                 (log_txt_as_img((512, 512), log_prompt) + 1) / 2,
                             ),
+                            ("image/decoded_output", (log_decoded_output + 1) / 2),
+                            ("image/model_output", (pure_cldm.vae_decode(log_model_output, cond_aug["enc_fea"]) + 1) / 2),
                         ]:
                             writer.add_image(tag, make_grid(image, nrow=4), global_step)
                 cldm.train()

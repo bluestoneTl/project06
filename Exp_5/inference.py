@@ -84,6 +84,12 @@ def parse_args() -> Namespace:
         default="",
         help="Path to saved checkpoint. Only works when version is custom.",
     )
+    parser.add_argument(    # 要测试的cldm.vae模型的路径。仅当版本为'custom'时生效
+        "--ckpt_vae",
+        type=str,
+        default="",
+        help="Path to saved checkpoint. Only works when version is custom.",
+    ) 
     # sampling parameters
     parser.add_argument(    # 采样器类型，同的采样器可能会产生非常不同的样本
         "--sampler",

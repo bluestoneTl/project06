@@ -47,7 +47,8 @@ class ControlLDM(nn.Module):
             "vae": "first_stage_model",
             "clip": "cond_stage_model",
         }
-        modules = [("unet", self.unet), ("vae", self.vae), ("clip", self.clip)]
+        # modules = [("unet", self.unet), ("vae", self.vae), ("clip", self.clip)]
+        modules = [("unet", self.unet),  ("clip", self.clip)]
         used = set()
         missing = set()
         for name, module in modules:
@@ -62,7 +63,8 @@ class ControlLDM(nn.Module):
                 used.add(target_key)
             module.load_state_dict(init_sd, strict=False)
         unused = set(sd.keys()) - used
-        for module in [self.vae, self.clip, self.unet]:
+        # for module in [self.vae, self.clip, self.unet]:       
+        for module in [ self.clip, self.unet]:     
             module.eval()
             module.train = disabled_train
             for p in module.parameters():
