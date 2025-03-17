@@ -101,14 +101,14 @@ dataset:
     params:
       # training file list path
       # file_list: 
-      file_list_HQ: datasets/ZZCX_2_1/train/HQ.list
-      file_list_LQ: datasets/ZZCX_2_1/train/LQ.list
+      file_list_HQ: datasets/ZZCX_3_3/train/HQ.list
+      file_list_LQ: datasets/ZZCX_3_3/train/LQ.list
       # file_list_LQ: datasets/ZZCX_2_1/test/LQ.list
       # file_list_HQ: datasets/ZZCX_2_1/test/HQ.list
       # file_list_condition: datasets/ZZCX_01_20/train/condition_edge.list
       # file_list_condition: datasets/ZZCX_01_20/train/condition_RGB.list
-      file_list_RGB: datasets/ZZCX_2_1/train/condition_swinir_LQ.list
-      file_list_edge: datasets/ZZCX_2_1/train_RGB/condition_edge.list
+      file_list_RGB: datasets/ZZCX_3_3/train_RGB/condition_RGB.list
+      file_list_edge: datasets/ZZCX_3_3/train_RGB/condition_edge.list
       file_backend_cfg:
         target: diffbir.dataset.file_backend.HardDiskBackend
       out_size: 512
