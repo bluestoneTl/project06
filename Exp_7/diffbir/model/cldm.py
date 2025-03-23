@@ -2,15 +2,15 @@ from typing import Tuple, Set, List, Dict
 
 import torch
 from torch import nn
-
+import torch as th
 from .controlnet import ControlledUnetModel, ControlNet, ControlNet_LCA, ControlNet_RCA
 from .vae import AutoencoderKL
 from .util import GroupNorm32
 from .clip import FrozenOpenCLIPEmbedder
 from .distributions import DiagonalGaussianDistribution
 from ..utils.tilevae import VAEHook
-
-
+from .util import conv_nd, linear, zero_module, timestep_embedding, exists
+import torch.nn.functional as F
 def disabled_train(self: nn.Module) -> nn.Module:
     """Overwrite model.train with this function to make sure train/eval mode
     does not change anymore."""
@@ -20,18 +20,22 @@ def disabled_train(self: nn.Module) -> nn.Module:
 class ControlLDM(nn.Module):
 
     def __init__(
-        self, unet_cfg, vae_cfg, clip_cfg, controlnet_cfg, latent_scale_factor
+        self, unet_cfg, vae_cfg, clip_cfg, controlnet_cfg, controlnet_RCA_cfg, latent_scale_factor, use_fp16=False,
     ):
         super().__init__()
         self.controlnet_LCA = ControlNet_LCA(**controlnet_cfg)
-        self.controlnet_RCA = ControlNet_RCA(**controlnet_cfg)
-        unet_cfg['controlnet_LCA'] = self.controlnet_LCA                # 这里传入controlnet到unet
-        unet_cfg['controlnet_RCA'] = self.controlnet_RCA
+        self.controlnet_RCA = ControlNet_RCA(**controlnet_RCA_cfg)
         self.unet = ControlledUnetModel(**unet_cfg)
         self.vae = AutoencoderKL(**vae_cfg)
         self.clip = FrozenOpenCLIPEmbedder(**clip_cfg)
         self.scale_factor = latent_scale_factor
         self.control_scales = [1.0] * 13
+        self.dtype = th.float16 if use_fp16 else th.float32
+
+        self.z_ref_proj = nn.Conv2d(4, 320, kernel_size=1)  # 将z_ref的通道数从 4 变为 320
+        self.adjust_conv_1 = nn.Conv2d(640, 320, kernel_size=1)
+        self.adjust_conv_2 = nn.Conv2d(1280, 640, kernel_size=1)
+        # self.adjust_conv_3 = nn.Conv2d(1280, 1280, kernel_size=1)
 
         self.conv = nn.Conv2d(
             in_channels=6,  # 输入通道数，因为输入张量的通道数为 6
@@ -40,7 +44,7 @@ class ControlLDM(nn.Module):
             stride=1,  # 步长为 1，保持尺寸不变
             padding=0  # 不使用填充，因为 1x1 卷积核且步长为 1 时不需要填充
         )
-
+    
     @torch.no_grad()
     def load_pretrained_sd(
         self, sd: Dict[str, torch.Tensor]
@@ -211,6 +215,7 @@ class ControlLDM(nn.Module):
         txt: List[str],
         # condition: torch.Tensor,  # 新增条件特征作为输入
         cond_RGB: torch.Tensor,  # 新增条件RGB特征作为输入
+        # condition: torch.Tensor,  # clip提取的图像特征
         tiled: bool = False,
         tile_size: int = -1,
     ) -> Dict[str, torch.Tensor]:
@@ -223,7 +228,14 @@ class ControlLDM(nn.Module):
                 tiled=tiled,
                 tile_size=tile_size,
             ), 
-            c_rgb=cond_RGB,               # 【融合RGB图像方法二】               
+            # c_rgb=cond_RGB,               # 【融合RGB图像方法二】               
+            c_rgb = self.vae_encode(
+                cond_RGB * 2 - 1,   # 像素值范围从 [0, 1] 转换为 [-1, 1]
+                sample=False,
+                tiled=tiled,
+                tile_size=tile_size,
+            ),
+            # c_condition=condition,
             # c_img shape: torch.Size([16, 4, 64, 64])   # 原本输出的结果
         )
 
@@ -231,22 +243,117 @@ class ControlLDM(nn.Module):
     def forward(self, x_noisy, t, cond, is_first_stage):
         c_txt = cond["c_txt"]
         c_img = cond["c_img"]
-        c_rgb = cond["c_rgb"]  # 【融合RGB图像方法一/方法二】
+        c_rgb = cond["c_rgb"]               # rgb图像 vae编码后的特征
+        # c_condition = cond["c_condition"]   # rgb图像 clip提取的图像特征
         
         # control = self.controlnet(x=x_noisy, hint=c_img, rgb=c_rgb, timesteps=t, context=c_txt)  # 【融合RGB图像方法二】
         # control = [c * scale for c, scale in zip(control, self.control_scales)]
-        eps = self.unet(
-            x=x_noisy,
-            timesteps=t,
-            context=c_txt,
-            # control=control,
-            hint=c_img,
-            rgb=c_rgb,
-            only_mid_control=False,
-            is_first_stage=is_first_stage,
-        )
-        return eps
+        # eps = self.unet(
+        #     x=x_noisy,
+        #     timesteps=t,
+        #     context=c_txt,
+        #     # control=control,
+        #     hint=c_img,
+        #     rgb=c_rgb,
+        #     only_mid_control=False,
+        #     is_first_stage=is_first_stage,
+        # )
 
+        # 1. 提取Unet解码器特征
+        t_emb = timestep_embedding(t, self.unet.model_channels, repeat_only=False)
+        emb = self.unet.time_embed(t_emb)
+        h, emb, context = map(lambda t: t.type(self.dtype), (x_noisy, emb, c_txt))
+        hs = []
+        for module in self.unet.input_blocks:
+            h = module(h, emb, context)
+            hs.append(h)
+
+        # 2. 计算控制信号
+        if is_first_stage:
+            control = self.controlnet_LCA(x=x_noisy, hint=c_img, timesteps=t, context=c_txt, unet_encoder_results=hs)
+        else:
+            z_ref = self.controlnet_RCA.RLF(gt=c_rgb, z_lq=c_img)
+            control = self.control_DCA(x=x_noisy, hint=c_img, z_ref=z_ref, timesteps=t, context=c_txt, unet_encoder_results=hs)
+
+        control = [c * scale for c, scale in zip(control, self.control_scales)]
+
+        # 3. 应用控制信号
+        h = self.unet.middle_block(h, emb, context)
+        if control is not None:
+            h += control.pop()
+
+        for i, module in enumerate(self.unet.output_blocks):
+            if control is not None:
+                h = torch.cat([h, hs.pop() + control.pop()], dim=1)
+            else:
+                h = torch.cat([h, hs.pop()], dim=1)
+            h = module(h, emb, c_txt)
+
+        # 4. 输出结果
+        h = h.type(x_noisy.dtype)
+        eps = self.unet.out(h)
+        return eps
+    
+    def adjust_conv(self, x, i):
+        if i == 4: 
+            return self.adjust_conv_1(x).to(x.device)
+        elif i == 7:
+            return self.adjust_conv_2(x).to(x.device)
+    
+    def control_DCA(self, x, hint, z_ref, timesteps, context, unet_encoder_results):
+            t_emb = timestep_embedding(timesteps, self.unet.model_channels, repeat_only=False)
+            emb = self.unet.time_embed(t_emb)
+
+            # x = x + hint
+            x = torch.cat((x, hint), dim=1)
+
+            outs = []
+            lca_features = []
+            rca_features = []
+
+            z_ref = self.z_ref_proj(z_ref)
+
+            h, emb, context = map(lambda t: t.type(self.dtype), (x, emb, context))    
+            for i, (module_LCA, zero_conv_LCA, module_RCA, zero_conv_RCA) in enumerate(
+                    zip(self.controlnet_LCA.input_blocks, self.controlnet_LCA.zero_convs,
+                        self.controlnet_RCA.input_blocks, self.controlnet_RCA.zero_convs)):
+                # 在 LCA 中计算
+                h_lca = module_LCA(h, emb, context)     
+                lca_features.append(zero_conv_LCA(h_lca, emb, context))
+
+                # h shape: torch.Size([16, 8, 64, 64])
+                # lca_features[i] shape: torch.Size([16, 320, 64, 64])
+                # z_ref shape: torch.Size([16, 320, 64, 64])       通道数扩充到了320
+
+                # 在 RCA 中计算，并合并到 h
+                if i == 0:
+                    h_rca = module_RCA(lca_features[i] + z_ref, emb, context)      
+                else :
+                    if i == 3 or i == 6 or i == 9:  
+                        lca_feature = F.interpolate(lca_features[i], size=rca_features[i-1].shape[2:], mode='bilinear', align_corners=True)
+                    elif i == 4 or i == 7 : 
+                        lca_feature = self.adjust_conv(lca_features[i],i) 
+                    else:
+                        lca_feature = lca_features[i]
+                    
+                    h_rca = module_RCA(lca_feature + rca_features[i-1], emb, context)
+
+                rca_features.append(zero_conv_RCA(h_rca, emb, context))
+
+                h = lca_features[i] + rca_features[i]
+                h = h + unet_encoder_results[i]  # 融合编码器部分的中间结果
+
+                outs.append(h)
+
+            # 处理中间块
+            h_rca_middle = self.controlnet_RCA.middle_block(rca_features[-1], emb, context)
+            h_lca_middle = self.controlnet_LCA.middle_block(h[-1] + h_rca_middle, emb, context)
+            
+            h_middle = h_lca_middle 
+            outs.append(h_middle)
+
+            return outs
+    
     def cast_dtype(self, dtype: torch.dtype) -> "ControlLDM":
         self.unet.dtype = dtype
         self.controlnet.dtype = dtype

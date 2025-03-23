@@ -42,7 +42,8 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
             elif isinstance(layer, SpatialTransformer):
-                x = layer(x, context, rgb)                 # 【融合RGB图像方法二】
+                # x = layer(x, context, rgb)                 # 【融合RGB图像方法二】
+                x = layer(x, context)                 
             else:
                 x = layer(x)
         return x
@@ -718,3 +719,4 @@ class UNetModel(nn.Module):
             return self.id_predictor(h)
         else:
             return self.out(h)
+        

@@ -16,7 +16,7 @@ from diffbir.model import ControlLDM, SwinIR, Diffusion
 from diffbir.utils.common import instantiate_from_config, to, log_txt_as_img
 from diffbir.sampler import SpacedSampler
 # python train_stage2.py --config configs/train/train_stage2.yaml --train_stage 1
-# python train_stage2.py --config configs/train/train_stage2.yaml --train_stage 2 --controlnet_lca_ckpt /path/to/stage1_checkpoint.pt
+# python train_stage2.py --config configs/train/train_stage2.yaml --train_stage 2 --controlnet_lca_ckpt experiment/experiment_MGFA/stage2/checkpoints/0030000.pt
 
 def main(args) -> None:
     # Setup accelerator:
@@ -57,7 +57,9 @@ def main(args) -> None:
     else:
         # 阶段2：加载LCA权重，初始化RCA
         if args.controlnet_lca_ckpt:
-            cldm.load_controlnet_lca_from_ckpt(torch.load(args.controlnet_lca_ckpt))
+            # cldm.load_controlnet_lca_from_ckpt(torch.load(args.controlnet_lca_ckpt))
+            ckpt = torch.load(args.controlnet_lca_ckpt)
+            cldm.load_controlnet_lca_from_ckpt(ckpt['controlnet_LCA'])
             if accelerator.is_main_process:
                 print(f"Stage 2: LCA loaded from {args.controlnet_lca_ckpt}")
         else:
@@ -141,7 +143,7 @@ def main(args) -> None:
     epoch = 0
     epoch_loss = []
     sampler = SpacedSampler(
-        diffusion.betas, diffusion.parameterization, rescale_cfg=False
+        diffusion.betas, diffusion.parameterization, rescale_cfg=False, is_first_stage=(args.train_stage == 1)
     )
     if accelerator.is_main_process:
         writer = SummaryWriter(exp_dir)
@@ -162,6 +164,7 @@ def main(args) -> None:
             # lq shape: torch.Size([16, 512, 512, 3])
             gt = rearrange(gt, "b h w c -> b c h w").contiguous().float()
             lq = rearrange(lq, "b h w c -> b c h w").contiguous().float()
+            rgb = rearrange(rgb, "b h w c -> b c h w").contiguous().float()
             # gt shape: torch.Size([16, 3, 512, 512])
             # lq shape: torch.Size([16, 3, 512, 512])
             # rgb shape: 方法一是 torch.Size([16, 3, 512, 512])   方法二是 torch.Size([16, 1, 768])
@@ -172,7 +175,7 @@ def main(args) -> None:
                 # cond shape: torch.Size([16, 4, 64, 64])
                 #  对RGB执行操作  和 cond 进行concat  卷积下降 作为新的condtition   
                 # noise augmentation
-                cond_aug = copy.deepcopy(cond)
+                cond_aug = copy.deepcopy(cond)      # 增强？
                 if noise_aug_timestep > 0:
                     cond_aug["c_img"] = diffusion.q_sample(
                         x_start=cond_aug["c_img"],
@@ -291,5 +294,6 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--train_stage", type=int, default=1)
+    parser.add_argument("--controlnet_lca_ckpt", type=str, default=None)
     args = parser.parse_args()
     main(args)

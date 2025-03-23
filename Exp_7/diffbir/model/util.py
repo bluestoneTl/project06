@@ -253,6 +253,12 @@ def normalization(channels):
     :return: an nn.Module for normalization.
     """
     return GroupNorm32(32, channels)
+    # # 动态选择能整除 channels 的最大 num_groups（不超过32）
+    # num_groups = 32
+    # while channels % num_groups != 0 and num_groups > 1:
+    #     num_groups -= 1
+    # print(num_groups, channels)
+    # return GroupNorm32(num_groups, channels)
 
 
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.

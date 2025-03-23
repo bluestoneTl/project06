@@ -15,8 +15,8 @@ from .unet import (
 class ControlledUnetModel(UNetModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.controlnet_LCA = kwargs.get("controlnet_LCA")
-        self.controlnet_RCA = kwargs.get("controlnet_RCA")
+        # self.controlnet_LCA = kwargs.get("controlnet_LCA")
+        # self.controlnet_RCA = kwargs.get("controlnet_RCA")
         self.control_scales = [1.0] * 13
 
     def forward(                # x_noisy, t, c_txt, c_img, c_rgb
@@ -45,7 +45,7 @@ class ControlledUnetModel(UNetModel):
             control = self.controlnet_LCA(x=x, hint=hint, timesteps=timesteps, context=context, unet_encoder_results=hs)    
         else:
             # 用 LCA 和 RCA 计算控制信息，第二阶段
-            z_ref = self.controlnet_RCA.RLF(gt_image=hint, z_lq=rgb) # rgb
+            z_ref = self.controlnet_RCA.RLF(gt_image=hint, z_lq=rgb, emb=emb) # rgb
             control = self.control_DCA(x=x, hint=hint, z_ref=z_ref, rgb=rgb, timesteps=timesteps, context=context, unet_encoder_results=hs)
 
         control = [c * scale for c, scale in zip(control, self.control_scales)]
@@ -169,8 +169,8 @@ class ControlNet(nn.Module):
         self.image_size = image_size
         self.in_channels = in_channels
         self.model_channels = model_channels
-        if isinstance(num_res_blocks, int):
-            self.num_res_blocks = len(channel_mult) * [num_res_blocks]
+        if isinstance(num_res_blocks, int):         # num_res_blocks=2
+            self.num_res_blocks = len(channel_mult) * [num_res_blocks]  # num_res_blocks=[2,2,2,2]
         else:
             if len(num_res_blocks) != len(channel_mult):
                 raise ValueError(
@@ -201,6 +201,7 @@ class ControlNet(nn.Module):
         self.channel_mult = channel_mult
         self.conv_resample = conv_resample
         self.use_checkpoint = use_checkpoint
+        self.use_scale_shift_norm = use_scale_shift_norm
         self.dtype = th.float16 if use_fp16 else th.float32
         self.num_heads = num_heads
         self.num_head_channels = num_head_channels
@@ -218,7 +219,7 @@ class ControlNet(nn.Module):
             [
                 TimestepEmbedSequential(
                     conv_nd(
-                        dims, in_channels + hint_channels, model_channels, 3, padding=1     # cat就行
+                        dims, in_channels + hint_channels, model_channels, 3, padding=1     # cat就行   [2,8,320,3]
                     )
                 )
             ]
@@ -229,8 +230,8 @@ class ControlNet(nn.Module):
         input_block_chans = [model_channels]
         ch = model_channels
         ds = 1
-        for level, mult in enumerate(channel_mult):
-            for nr in range(self.num_res_blocks[level]):
+        for level, mult in enumerate(channel_mult):             # channel_mult=[1,2,4,4]
+            for nr in range(self.num_res_blocks[level]):        # num_res_blocks=[2,2,2,2]
                 layers = [
                     ResBlock(
                         ch,
@@ -243,20 +244,20 @@ class ControlNet(nn.Module):
                     )
                 ]
                 ch = mult * model_channels
-                if ds in attention_resolutions:
+                if ds in attention_resolutions:                 # attention_resolutions=[ 4, 2, 1 ]
                     if num_head_channels == -1:
                         dim_head = ch // num_heads
                     else:
                         num_heads = ch // num_head_channels
                         dim_head = num_head_channels
-                    if legacy:
+                    if legacy:                                  # legacy=false
                         # num_heads = 1
                         dim_head = (
                             ch // num_heads
                             if use_spatial_transformer
                             else num_head_channels
                         )
-                    if exists(disable_self_attentions):
+                    if exists(disable_self_attentions):         # disable_self_attentions=none
                         disabled_sa = disable_self_attentions[level]
                     else:
                         disabled_sa = False
@@ -273,7 +274,7 @@ class ControlNet(nn.Module):
                                 num_head_channels=dim_head,
                                 use_new_attention_order=use_new_attention_order,
                             )
-                            if not use_spatial_transformer
+                            if not use_spatial_transformer          # use_spatial_transformer: True
                             else SpatialTransformer(
                                 ch,
                                 num_heads,
@@ -304,7 +305,7 @@ class ControlNet(nn.Module):
                             use_scale_shift_norm=use_scale_shift_norm,
                             down=True,
                         )
-                        if resblock_updown
+                        if resblock_updown      # resblock_updown: false
                         else Downsample(
                             ch, conv_resample, dims=dims, out_channels=out_ch
                         )
@@ -341,7 +342,7 @@ class ControlNet(nn.Module):
                     num_head_channels=dim_head,
                     use_new_attention_order=use_new_attention_order,
                 )
-                if not use_spatial_transformer
+                if not use_spatial_transformer          # use_spatial_transformer: True
                 else SpatialTransformer(  # always uses a self-attn     # 只有这里用到了context！ 看后续怎么融合
                     ch,
                     num_heads,
@@ -413,19 +414,151 @@ class ControlNet_LCA(ControlNet):
 
         return outs    
 
+class ResBlock2(nn.Module):
+    def __init__(self, in_channels):
+        super(ResBlock2, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1)
+
+    def forward(self, x):
+        identity = x
+        out = self.conv1(x)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out += identity
+        out = self.relu(out)
+        return out
+    
 class RLFModule(nn.Module):
     def __init__(self, in_channels):
         super(RLFModule, self).__init__()
-        self.resblock = ResBlock(in_channels, in_channels * 4, 0)  # 参数咋设置？
-        self.conv = conv_nd(2, in_channels, in_channels, 3, padding=1)
+        self.resblock = ResBlock2(in_channels)
+        self.z_lq_conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1)
 
-    def forward(self, gt_image, z_lq):
-        gt_processed = self.resblock(gt_image)
-        z_lq_processed = self.conv(z_lq)
-        return gt_processed + z_lq_processed
+    def forward(self, gt, z_lq):
+        # gt经过残差块
+        gt_output = self.resblock(gt)
+        # z_lq经过卷积
+        z_lq_output = self.z_lq_conv(z_lq)
+        # 做加法
+        output = gt_output + z_lq_output
+        return output
     
 class ControlNet_RCA(ControlNet):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         #需要添加一个模块用于 处理gt,并与lq想加，即论文中的RLF模块  计算得到z_ref
-        self.RLF = RLFModule(self.model_channels)
+        self.RLF = RLFModule(in_channels=4) 
+        self.input_blocks
+        
+
+
+'''
+    controlnet(LCA) 网络结构：
+    self.time_embed = nn.Sequential(
+        linear(model_channels, time_embed_dim),     model_channels=320, time_embed_dim=320 * 4 = 1280
+        nn.SiLU(),
+        linear(time_embed_dim, time_embed_dim),
+    )
+
+    self.input_blocks :
+        初始卷积层：
+        TimestepEmbedSequential(
+            conv_nd(
+                    dims, in_channels + hint_channels, model_channels, 3, padding=1     # [2,8,320,3]
+            )
+        )
+        后续层，按 channel_mult=[1,2,4,4] 循环:
+
+        ===第一层===
+        ResBlock                    (ch=320,out_channels=320)
+        SpatialTransformer          (ch=320)
+        ResBlock                    (ch=320,out_channels=320)   
+        SpatialTransformer          (ch=320)
+        Downsample                  (ch=320,out_ch=320)
+
+        ===第二层===
+        ResBlock                    (ch=320,out_channels=640)
+        SpatialTransformer          (ch=640)
+        ResBlock                    (ch=640,out_channels=640)   
+        SpatialTransformer          (ch=640)
+        Downsample                  (ch=640,out_ch=640)
+
+        ===第三层===
+        ResBlock                    (ch=640,out_channels=1280)
+        SpatialTransformer          (ch=1280)
+        ResBlock                    (ch=1280,out_channels=1280)   
+        SpatialTransformer          (ch=1280)
+        Downsample                  (ch=1280,out_ch=1280)     
+
+        ===第四层===
+        ResBlock                    (ch=1280,out_channels=1280)
+        ResBlock                    (ch=1280,out_channels=1280)      
+
+    self.zero_convs       
+        与 self.input_blocks 输入通道对应， [320,640,1280,1280]
+
+    self.middle_block :
+        ResBlock                    (ch=1280,out_channels=1280)
+        SpatialTransformer          (ch=1280)
+        ResBlock                    (ch=1280,out_channels=1280)   
+    
+    self.middle_block_out :
+        zero_conv                   [1280]
+
+'''
+
+'''
+    controlnet(RCA) 网络结构：
+    self.time_embed = nn.Sequential(
+        linear(model_channels, time_embed_dim),     model_channels=320, time_embed_dim=320 * 4 = 1280
+        nn.SiLU(),
+        linear(time_embed_dim, time_embed_dim),
+    )
+
+    self.input_blocks :
+        初始卷积层：
+        TimestepEmbedSequential(
+            conv_nd(
+                    dims, in_channels + hint_channels, model_channels, 3, padding=1     # [2,320,320,3]
+            )
+        )
+        后续层，按 channel_mult=[1,2,4,4] 循环:
+
+        ===第一层===
+        ResBlock                    (ch=320,out_channels=320)
+        SpatialTransformer          (ch=320)
+        ResBlock                    (ch=320,out_channels=320)   
+        SpatialTransformer          (ch=320)
+        Downsample                  (ch=320,out_ch=320)
+
+        ===第二层===
+        ResBlock                    (ch=320,out_channels=640)
+        SpatialTransformer          (ch=640)
+        ResBlock                    (ch=640,out_channels=640)   
+        SpatialTransformer          (ch=640)
+        Downsample                  (ch=640,out_ch=640)
+
+        ===第三层===
+        ResBlock                    (ch=640,out_channels=1280)
+        SpatialTransformer          (ch=1280)
+        ResBlock                    (ch=1280,out_channels=1280)   
+        SpatialTransformer          (ch=1280)
+        Downsample                  (ch=1280,out_ch=1280)     
+
+        ===第四层===
+        ResBlock                    (ch=1280,out_channels=1280)
+        ResBlock                    (ch=1280,out_channels=1280)      
+
+    self.zero_convs       
+        与 self.input_blocks 输入通道对应， [320,640,1280,1280]
+
+    self.middle_block :
+        ResBlock                    (ch=1280,out_channels=1280)
+        SpatialTransformer          (ch=1280)
+        ResBlock                    (ch=1280,out_channels=1280)   
+    
+    self.middle_block_out :
+        zero_conv                   [1280]    
+'''

@@ -67,6 +67,22 @@ model:
         context_dim: 1024  # 特征放进context中 原来是1024
         rgb_dim: 768      # 【融合RGB图像方法二】
         legacy: False
+      controlnet_RCA_cfg:
+        use_checkpoint: True
+        image_size: 32 # unused
+        in_channels: 320
+        hint_channels: 0
+        model_channels: 320
+        attention_resolutions: [ 4, 2, 1 ]
+        num_res_blocks: 2
+        channel_mult: [ 1, 2, 4, 4 ]
+        num_head_channels: 64 # need to fix for flash-attn
+        use_spatial_transformer: True
+        use_linear_in_transformer: True
+        transformer_depth: 1
+        context_dim: 1024  # 特征放进context中 原来是1024
+        rgb_dim: 768      # 【融合RGB图像方法二】  
+        legacy: False
 
   swinir:
     target: diffbir.model.swinir.SwinIR
@@ -106,9 +122,9 @@ dataset:
       # file_list_LQ: datasets/ZZCX_2_1/test/LQ.list
       # file_list_HQ: datasets/ZZCX_2_1/test/HQ.list
       # file_list_condition: datasets/ZZCX_01_20/train/condition_edge.list
-      # file_list_condition: datasets/ZZCX_01_20/train/condition_RGB.list
-      file_list_RGB: datasets/ZZCX_3_3/train_RGB/condition_RGB.list
-      file_list_edge: datasets/ZZCX_3_3/train_RGB/condition_edge.list
+      # file_list_condition: datasets/ZZCX_3_3/train_RGB/condition_RGB.list
+      file_list_RGB: datasets/ZZCX_3_3/train_RGB/HQ.list
+      # file_list_edge: datasets/ZZCX_3_3/train_RGB/condition_edge.list
       file_backend_cfg:
         target: diffbir.dataset.file_backend.HardDiskBackend
       out_size: 512
@@ -128,7 +144,7 @@ train:
   # pretrained sd v2.1 path
   sd_path: weights/v2-1_512-ema-pruned.ckpt
   # experiment directory path
-  exp_dir: experiment/experiment_VAE_test/stage2
+  exp_dir: experiment/experiment_MGFA/stage3
   # stage 1 swinir path.
   # In our paper, we use SwinIR trained on ImageNet-1k with codeformer degradation.
   swinir_path: weights/my_swinir.pt

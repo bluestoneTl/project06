@@ -134,4 +134,4 @@ find datasets/ZZCX_2_1/train_RGB/condition_edge_HQ -type f > datasets/ZZCX_2_1/t
 find datasets/ZZCX_2_1/train/condition_swinir_LQ -type f > datasets/ZZCX_2_1/train/condition_swinir_LQ.list
 
 find datasets/ZZCX_2_1/test/LQ -type f > datasets/ZZCX_2_1/test/LQ.list
-find datasets/ZZCX_2_1/test/HQ -type f > datasets/ZZCX_2_1/test/HQ.list
+find datasets/ZZCX_3_3/train_RGB/HQ -type f > datasets/ZZCX_3_3/train_RGB/HQ.list

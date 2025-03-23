@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 from diffbir.model import ControlLDM, SwinIR, Diffusion
 from diffbir.utils.common import instantiate_from_config, to, log_txt_as_img
 from diffbir.sampler import SpacedSampler
-
+# python train_stage2.py --config configs/train/train_stage2.yaml
 
 def main(args) -> None:
     # Setup accelerator:
@@ -43,21 +43,6 @@ def main(args) -> None:
             f"missing weights: {missing}"
         )
 
-    # 加载预训练的 VAE 权重
-    if hasattr(cfg.train, 'vae_path') and cfg.train.vae_path:
-        vae_sd = torch.load(cfg.train.vae_path, map_location="cpu")
-        if "state_dict" in vae_sd:
-            vae_sd = vae_sd["state_dict"]
-        vae_sd = {
-            (k[len("module."):] if k.startswith("module.") else k): v
-            for k, v in vae_sd.items()
-        }
-        cldm.vae.load_state_dict(vae_sd, strict=True)
-        if accelerator.is_main_process:
-            print(f"load VAE from {cfg.train.vae_path}")
-    else:
-        if accelerator.is_main_process:
-            print("Training VAE from scratch.") # 从头开始训练
 
     if cfg.train.resume:
         cldm.load_controlnet_from_ckpt(torch.load(cfg.train.resume, map_location="cpu"))
@@ -183,9 +168,11 @@ def main(args) -> None:
             loss = diffusion.p_losses(cldm, z_0, t, cond_aug)       # 这里用cldm模型，计算损失，后续关键步骤的入口
 
             # 将解码器的输出与原始输入比较。目的是更新vae.decoder的参数
-            reconstructed = pure_cldm.vae_decode(z_0)         
-            vae_loss = torch.nn.functional.mse_loss(reconstructed, gt)   
-            loss = loss + vae_loss 
+            lq = lq * 2 - 1     # 
+            z_lq = pure_cldm.vae_encode(lq)
+            reconstructed = pure_cldm.vae_decode(z_lq)         
+            vae_loss = torch.nn.functional.mse_loss(reconstructed, lq)   
+            loss = loss + vae_loss * 0.1        # 调整比例
 
             opt.zero_grad()
             accelerator.backward(loss)
@@ -275,7 +262,8 @@ def main(args) -> None:
                         for tag, image in [
                             ("image/samples", (pure_cldm.vae_decode(z) + 1) / 2),
                             ("image/gt", (log_gt + 1) / 2),
-                            ("image/lq", log_lq),
+                            # ("image/lq", log_lq),
+                            ("image/lq", (log_lq + 1) / 2),
                             ("image/condition", log_clean),
                             (
                                 "image/condition_decoded",
@@ -290,8 +278,8 @@ def main(args) -> None:
                                 (log_txt_as_img((512, 512), log_prompt) + 1) / 2,
                             ),
                             (
-                                "image/reconstructed",
-                                (log_reconstructed + 1) / 2,
+                                "image/reconstructed_lq",
+                                (log_reconstructed + 1) / 2,        # 这里因为将重建gt换成了重建lq，应该用下面的，experiment3中未改
                             ),
                         ]:
                             writer.add_image(tag, make_grid(image, nrow=4), global_step)

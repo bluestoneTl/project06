@@ -25,9 +25,9 @@ class CodeformerDataset(data.Dataset):
         # file_list: str,
         file_list_HQ: str,
         file_list_LQ: str,        
-        # file_list_condition: str,           # 新增的条件文件列表
-        file_list_RGB: str,                     # 【融合RGB图像方法二】
-        file_list_edge: str,                    # 【融合边缘图】
+        # file_list_condition: str,               # clip预先提取的图像特征
+        file_list_RGB: str,                     # 【融合RGB图像方法二】      
+        # file_list_edge: str,                    # 【融合边缘图】
         file_backend_cfg: Mapping[str, Any],
         out_size: int,
         # 以下这些参数原本用于生成LQ图像，现暂时保留
@@ -47,12 +47,12 @@ class CodeformerDataset(data.Dataset):
         self.file_list_LQ = file_list_LQ
         # self.file_list_condition = file_list_condition
         self.file_list_RGB = file_list_RGB
-        self.file_list_edge = file_list_edge
+        # self.file_list_edge = file_list_edge
         self.image_files_HQ = load_file_list(file_list_HQ)
         self.image_files_LQ = load_file_list(file_list_LQ)
-        # self.image_files_condition = load_file_list(file_list_condition)    # 新增的条件文件列表
+        # self.image_files_condition = load_file_list(file_list_condition)    # clip预先提取的图像特征
         self.image_files_RGB = load_file_list(file_list_RGB)
-        self.image_files_edge = load_file_list(file_list_edge)
+        # self.image_files_edge = load_file_list(file_list_edge)
         self.file_backend = instantiate_from_config(file_backend_cfg)
         self.out_size = out_size
         self.crop_type = crop_type
@@ -77,8 +77,8 @@ class CodeformerDataset(data.Dataset):
             image_bytes = self.file_backend.get(image_path)
             max_retry -= 1
             if image_bytes is None:
-                time.sleep(0.5)
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                time.sleep(0.5) 
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")   
         if self.crop_type != "none":
             if image.height == self.out_size and image.width == self.out_size:
                 image = np.array(image)
@@ -95,7 +95,7 @@ class CodeformerDataset(data.Dataset):
     
     def load_condition_features(self, index: int) -> Optional[np.ndarray]:
         """加载条件特征文件"""
-        condition_file = self.image_files_RGB[index]
+        condition_file = self.image_files_condition[index]
         condition_path = condition_file["image_path"] 
         # Tensor shape: torch.Size([1, 768])
         try:
@@ -141,10 +141,24 @@ class CodeformerDataset(data.Dataset):
                     index = random.randint(0, len(self) - 1)
 
             # 加载RGB图像特征          # 【融合RGB图像方法二】
-            rgb = self.load_condition_features(index)
+            # rgb = self.load_condition_features(index)
+
+            # 加载RGB图像，用作引导
+            rgb = None
+            while rgb is None:
+                image_file_RGB = self.image_files_RGB[index]
+                rgb_path = image_file_RGB["image_path"]
+                rgb = self.load_gt_image(rgb_path)
+                if rgb is None:
+                    print(f"filed to load {rgb_path}, try another image")
+                    index = random.randint(0, len(self) - 1)
+            rgb = (rgb[..., ::-1] / 255.0).astype(np.float32)
 
             # # 加载边缘图特征
             # edge = self.load_condition_features2(index)
+
+            # 加载rgb图像特征，clip预先提取的图像特征
+            # condition = self.load_condition_features(index)
 
             img_gt = (img_gt[..., ::-1] / 255.0).astype(np.float32)
             gt = (img_gt[..., ::-1] * 2 - 1).astype(np.float32)

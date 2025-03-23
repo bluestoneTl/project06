@@ -297,15 +297,15 @@ class BasicTransformerBlock(nn.Module):
         x = self.attn2(self.norm2(x), context=context) + x
         x = self.ff(self.norm3(x)) + x
 
-        x = (
-            self.attn_rgb1(
-                self.norm1(x), context=rgb if self.disable_self_attn else None
-            )
-            + x
-        )
-        if rgb is not None:
-            x = self.attn_rgb2(self.norm2(x), context=rgb) + x  # 新增处理rgb特征的交叉注意力 【融合RGB图像方法二】
-        x = self.ff(self.norm3(x)) + x
+        # x = (
+        #     self.attn_rgb1(
+        #         self.norm1(x), context=rgb if self.disable_self_attn else None
+        #     )
+        #     + x
+        # )
+        # if rgb is not None:
+        #     x = self.attn_rgb2(self.norm2(x), context=rgb) + x  # 新增处理rgb特征的交叉注意力 【融合RGB图像方法二】
+        # x = self.ff(self.norm3(x)) + x
 
         return x
 
@@ -370,28 +370,29 @@ class SpatialTransformer(nn.Module):
             self.proj_out = zero_module(nn.Linear(in_channels, inner_dim))
         self.use_linear = use_linear
 
-    def forward(self, x, context=None, rgb=None):  ## 16 1 512   16 4 512 512     # 在这里将clip提取的特征与x使用 ，用交叉注意力
+    # def forward(self, x, context=None, rgb=None):  ## 16 1 512   16 4 512 512     # 在这里将clip提取的特征与x使用 ，用交叉注意力
+    def forward(self, x, context=None):  
         # note: if no context is given, cross-attention defaults to self-attention
         # x shape:　torch.Size([16, 320, 64, 64])
         # context shape: torch.Size([16, 77, 1024])
-        # rgb shape: torch.Size([16, 1, 768])
+        # rgb shape: torch.Size([16, 1, 768])   
         if not isinstance(context, list):
-            context = [context]
-        if not isinstance(rgb, list):
-            rgb = [rgb]
+            context = [context]     
+        # if not isinstance(rgb, list):
+        #     rgb = [rgb]
         b, c, h, w = x.shape
         x_in = x
         x = self.norm(x)
         if not self.use_linear:
             x = self.proj_in(x)
         x = rearrange(x, "b c h w -> b (h w) c").contiguous()
-        # x shape: torch.Size([16, 4096, 320])
         if self.use_linear:
-            x = self.proj_in(x)
+            x = self.proj_in(x)       
+        # 这里可以加判断处理，如果rgb是四维的，按和上面一样的操作 处理成三维，然后过self.proj_in卷积处理下（不行，得具体看看这个卷积是干什么的）
+
         for i, block in enumerate(self.transformer_blocks):
-            # x = block(x, context=context[i]) 
-            # x = block(x, rgb=rgb[i])            # 【融合RGB图像方法二】  block不能重复用
-            x = block(x, context=context[i], rgb=rgb[i])
+            x = block(x, context=context[i])
+            # x = block(x, context=context[i], rgb=rgb[i])
 
         if self.use_linear:
             x = self.proj_out(x)
